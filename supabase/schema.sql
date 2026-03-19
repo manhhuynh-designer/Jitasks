@@ -14,6 +14,20 @@ CREATE TABLE suppliers (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   name TEXT NOT NULL,
   contact_info TEXT,
+  address TEXT,
+  tax_code TEXT,
+  notes TEXT,
+  created_by UUID REFERENCES profiles(id) DEFAULT auth.uid(),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 2.1 Create Assignees Table
+CREATE TABLE assignees (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  full_name TEXT NOT NULL,
+  role TEXT,
+  email TEXT,
+  created_by UUID REFERENCES profiles(id) DEFAULT auth.uid(),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -24,7 +38,7 @@ CREATE TABLE projects (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   name TEXT NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  created_by UUID REFERENCES profiles(id),
+  created_by UUID REFERENCES profiles(id) DEFAULT auth.uid(),
   supplier_id UUID REFERENCES suppliers(id),
   status project_status DEFAULT 'Sourcing',
   color_code TEXT,
@@ -39,10 +53,13 @@ CREATE TABLE tasks (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
+  start_date TIMESTAMP WITH TIME ZONE,
   deadline TIMESTAMP WITH TIME ZONE,
+  description TEXT,
+  links JSONB DEFAULT '[]'::jsonb,
   status task_status DEFAULT 'todo',
   priority task_priority DEFAULT 'medium',
-  assignee_id UUID REFERENCES profiles(id),
+  assignee_id UUID REFERENCES assignees(id),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -51,22 +68,42 @@ CREATE TABLE task_templates (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   project_status project_status NOT NULL,
   task_name TEXT NOT NULL,
-  default_priority task_priority DEFAULT 'medium'
+  default_priority task_priority DEFAULT 'medium',
+  created_by UUID REFERENCES profiles(id) DEFAULT auth.uid()
 );
 
 -- Enable Row Level Security
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE suppliers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE assignees ENABLE ROW LEVEL SECURITY;
 ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE task_templates ENABLE ROW LEVEL SECURITY;
 
--- Basic Policies (Allow authenticated users access)
-CREATE POLICY "Allow authenticated full access to profiles" ON profiles FOR ALL TO authenticated USING (true);
-CREATE POLICY "Allow authenticated full access to suppliers" ON suppliers FOR ALL TO authenticated USING (true);
-CREATE POLICY "Allow authenticated full access to projects" ON projects FOR ALL TO authenticated USING (true);
-CREATE POLICY "Allow authenticated full access to tasks" ON tasks FOR ALL TO authenticated USING (true);
-CREATE POLICY "Allow authenticated full access to task_templates" ON task_templates FOR ALL TO authenticated USING (true);
+-- Strict User Isolation Policies
+CREATE POLICY "Users can only manage their own profile" ON profiles 
+FOR ALL TO authenticated USING (id = auth.uid()) WITH CHECK (id = auth.uid());
+
+CREATE POLICY "Users can only manage their own suppliers" ON suppliers 
+FOR ALL TO authenticated USING (created_by = auth.uid()) WITH CHECK (created_by = auth.uid());
+
+CREATE POLICY "Users can manage their own assignees" ON assignees 
+FOR ALL TO authenticated USING (created_by = auth.uid()) WITH CHECK (created_by = auth.uid());
+
+CREATE POLICY "Users can only manage their own projects" ON projects 
+FOR ALL TO authenticated USING (created_by = auth.uid()) WITH CHECK (created_by = auth.uid());
+
+CREATE POLICY "Users can only manage tasks in their projects" ON tasks 
+FOR ALL TO authenticated USING (
+  EXISTS (
+    SELECT 1 FROM projects 
+    WHERE projects.id = tasks.project_id 
+    AND projects.created_by = auth.uid()
+  )
+);
+
+CREATE POLICY "Users can only manage their own templates" ON task_templates 
+FOR ALL TO authenticated USING (created_by = auth.uid()) WITH CHECK (created_by = auth.uid());
 
 -- Functions and Triggers
 -- Create a profile on signup
