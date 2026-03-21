@@ -15,8 +15,12 @@ export type Task = {
   priority: 'low' | 'medium' | 'high' | 'critical'
   assignee_id: string | null
   category_id: string | null
-  projects?: { name: string }
+  task_group_id: string | null
+  task_time: string | null
+  projects?: { name: string, status: string }
   assignees?: { full_name: string }
+  project_categories?: { name: string }
+  task_groups?: { id: string, name: string } | null
 }
 
 export function useTasks(options: { projectId?: string, dueSoon?: boolean } = {}) {
@@ -27,7 +31,7 @@ export function useTasks(options: { projectId?: string, dueSoon?: boolean } = {}
     setLoading(true)
     let query = supabase
       .from('tasks')
-      .select('*, projects(name), assignees(full_name)')
+      .select('*, projects(name, status), assignees(full_name), project_categories(name), task_groups(id, name)')
       .order('deadline', { ascending: true })
 
     if (options.projectId) {

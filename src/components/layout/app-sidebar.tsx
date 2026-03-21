@@ -86,7 +86,7 @@ export function AppSidebar() {
         { title: 'Sourcing', url: '/projects?status=Sourcing', color: 'bg-slate-300' },
         { title: 'Listing', url: '/projects?status=Listing', color: 'bg-slate-300' },
         { title: 'Tracking', url: '/projects?status=Tracking', color: 'bg-slate-300' },
-        { title: 'Archive', url: '/projects?status=Archived', color: 'bg-slate-300' },
+        { title: 'Archive', url: '/projects?status=Archive', color: 'bg-slate-300' },
       ]
     },
     {

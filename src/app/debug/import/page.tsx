@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { AlertCircle, CheckCircle2, FileJson, Loader2, ArrowLeft } from 'lucide-react'
@@ -38,24 +38,103 @@ export default function DebugImportPage() {
 
     try {
       const text = await file.text()
-      const data = JSON.parse(text)
-      addLog('Bắt đầu quá trình import dữ liệu...')
+      addLog(`Đã đọc file: ${file.name} (${text.length} bytes)`)
+      
+      let data: any
+      try {
+        data = JSON.parse(text)
+        addLog('Giải mã JSON thành công.')
+      } catch (pe) {
+        throw new Error(`Lỗi định dạng JSON: ${(pe as any).message}`)
+      }
 
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Chưa đăng nhập!')
       const uid = user.id
+      addLog(`User authenticated: ${uid}`)
+
+      // Safety checks
+      data.suppliers = data.suppliers || []
+      data.assignees = data.assignees || []
+      data.projects = data.projects || []
+      data.tasks = data.tasks || []
+      data.task_groups = data.task_groups || []
+      data.task_templates = data.task_templates || []
 
       // 1. Map IDs
       const supplierMap = new Map<string, string>()
       const assigneeMap = new Map<string, string>()
       const projectMap = new Map<string, string>()
+      const taskGroupMap = new Map<string, string>()
 
-      // 2. Fetch Categories (to map status to ID if needed)
-      const { data: categories } = await supabase.from('project_categories').select('*')
+      // 2. Fetch Categories
+      addLog('Đang tải Project Categories...')
+      const { data: categories, error: catFetchErr } = await supabase.from('project_categories').select('*')
+      if (catFetchErr) throw catFetchErr
+      
       addLog(`Tìm thấy ${categories?.length || 0} categories trong hệ thống.`)
+      const categoryMap = new Map<string, string>()
+      if (categories) {
+        categories.forEach(c => categoryMap.set(c.name, c.id))
+      }
 
-      // 3. Import Suppliers
-      if (data.suppliers?.length) {
+      // 3. Import Task Groups (Idempotent: Reuse existing ones)
+      if (data.task_groups.length) {
+        addLog(`Đang xử lý ${data.task_groups.length} nhóm task...`)
+        
+        // Fetch existing batches to avoid duplicates and RLS errors
+        const { data: existingGroups, error: groupFetchErr } = await supabase.from('task_groups').select('*')
+        if (groupFetchErr) {
+          addLog(`⚠️ Cảnh báo: Không thể tải danh sách nhóm hiện tại: ${groupFetchErr.message}`)
+        }
+
+        const existingGroupMap = new Map<string, string>() 
+        existingGroups?.forEach(eg => {
+          // Normalise key: lowercase category-name
+          const key = `${eg.category_id}-${eg.name.toLowerCase().trim()}`
+          existingGroupMap.set(key, eg.id)
+        })
+
+        for (const g of data.task_groups) {
+          const categoryNameNormalized = g.category_name.trim()
+          const categoryId = categoryMap.get(categoryNameNormalized)
+          
+          if (!categoryId) {
+             addLog(`⚠️ Bỏ qua nhóm "${g.name}" vì không thấy category "${g.category_name}"`)
+             continue
+          }
+
+          const cacheKey = `${categoryId}-${g.name.toLowerCase().trim()}`
+          if (existingGroupMap.has(cacheKey)) {
+            taskGroupMap.set(g.old_id, existingGroupMap.get(cacheKey)!)
+            continue
+          }
+
+          addLog(`  + Tạo mới nhóm: ${g.name}`)
+          const { data: newG, error: gErr } = await supabase
+            .from('task_groups')
+            .insert({
+              name: g.name,
+              category_id: categoryId,
+              order_index: data.task_groups.indexOf(g),
+              created_by: uid
+            })
+            .select().single()
+          
+          if (gErr) {
+            addLog(`❌ Lỗi RLS/DB tại nhóm "${g.name}": ${gErr.message}`)
+            throw gErr
+          }
+          taskGroupMap.set(g.old_id, newG.id)
+          existingGroupMap.set(cacheKey, newG.id)
+        }
+        addLog(`✅ Đã xong nhóm task (${taskGroupMap.size})`)
+      }
+
+
+
+      // 4. Import Suppliers
+      if (data.suppliers.length) {
         addLog(`Đang import ${data.suppliers.length} nhà cung cấp...`)
         for (const s of data.suppliers) {
           const { data: newS, error: sErr } = await supabase
@@ -67,15 +146,15 @@ export default function DebugImportPage() {
               notes: s.notes,
               created_by: uid
             })
-            .select()
-            .single()
+            .select().single()
           if (sErr) throw sErr
           supplierMap.set(s.old_id, newS.id)
         }
+        addLog(`✅ Đã xong nhà cung cấp (${supplierMap.size})`)
       }
 
-      // 4. Import Assignees
-      if (data.assignees?.length) {
+      // 5. Import Assignees
+      if (data.assignees.length) {
         addLog(`Đang import ${data.assignees.length} nhân sự...`)
         for (const a of data.assignees) {
           const { data: newA, error: aErr } = await supabase
@@ -86,44 +165,63 @@ export default function DebugImportPage() {
               email: a.email,
               created_by: uid
             })
-            .select()
-            .single()
+            .select().single()
           if (aErr) throw aErr
           assigneeMap.set(a.old_id, newA.id)
         }
+        addLog(`✅ Đã xong nhân sự (${assigneeMap.size})`)
       }
 
-      // 5. Import Projects
-      if (data.projects?.length) {
+      // 6. Import Projects
+      const projectStatusMap = new Map<string, string>()
+      const statusNormalizer = (s: string) => {
+        const map: Record<string, string> = {
+          'Tracking': 'Active',
+          'Listing': 'Active',
+          'Archived': 'Archive',
+          'Archive': 'Archive'
+        }
+        return map[s] || s
+      }
+
+      const timeToMinutes = (val: any) => {
+        if (typeof val === 'number') return val
+        if (typeof val === 'string' && val.includes(':')) {
+          const [h, m] = val.split(':').map(Number)
+          return (h || 0) * 60 + (m || 0)
+        }
+        return 0
+      }
+
+      if (data.projects.length) {
         addLog(`Đang import ${data.projects.length} dự án...`)
         for (const p of data.projects) {
+          const normalizedStatus = statusNormalizer(p.status)
           const { data: newP, error: pErr } = await supabase
             .from('projects')
             .insert({
               name: p.name,
               description: p.description,
-              status: p.status,
+              status: normalizedStatus,
               supplier_id: p.supplier_old_id ? supplierMap.get(p.supplier_old_id) : null,
               created_by: uid
             })
-            .select()
-            .single()
+            .select().single()
           if (pErr) throw pErr
           projectMap.set(p.old_id, newP.id)
+          projectStatusMap.set(p.old_id, normalizedStatus)
         }
+        addLog(`✅ Đã xong dự án (${projectMap.size})`)
       }
 
-      // 6. Import Tasks
-      if (data.tasks?.length) {
+      // 7. Import Tasks
+      if (data.tasks.length) {
         addLog(`Đang import ${data.tasks.length} công việc...`)
+        let tCount = 0
         for (const t of data.tasks) {
           const pid = projectMap.get(t.project_old_id)
-          if (!pid) {
-            addLog(`Bỏ qua task "${t.name}" vì không tìm thấy project ID.`)
-            continue
-          }
+          if (!pid) continue
 
-          // Calculate deadline relative to today
           let deadline = null
           if (t.deadline_offset_days !== undefined) {
              const d = new Date()
@@ -131,44 +229,73 @@ export default function DebugImportPage() {
              deadline = d.toISOString()
           }
 
+          const pStatus = projectStatusMap.get(t.project_old_id)
+          const catId = pStatus ? categoryMap.get(pStatus) : null
+
           const { error: tErr } = await supabase
             .from('tasks')
             .insert({
               project_id: pid,
+              category_id: catId,
+              task_group_id: t.task_group_old_id ? taskGroupMap.get(t.task_group_old_id) : null,
               name: t.name,
               description: t.description,
               priority: t.priority,
               status: t.status,
               assignee_id: t.assignee_old_id ? assigneeMap.get(t.assignee_old_id) : null,
               deadline: deadline,
+              task_time: timeToMinutes(t.task_time),
+              order_index: t.order_index || 0,
               created_by: uid
             })
-          if (tErr) throw tErr
+
+          if (tErr) {
+            addLog(`❌ Lỗi task "${t.name}": ${tErr.message}`)
+            throw tErr
+          }
+          tCount++
         }
+        addLog(`✅ Đã xong công việc (${tCount})`)
       }
 
-      // 7. Import Task Templates
-      if (data.task_templates?.length) {
-        addLog(`Đang import ${data.task_templates.length} task templates...`)
+      // 8. Import Task Templates
+      if (data.task_templates && data.task_templates.length) {
+        addLog(`Đang import ${data.task_templates.length} mẫu công việc...`)
         for (const tt of data.task_templates) {
           const { error: ttErr } = await supabase
             .from('task_templates')
             .insert({
-              project_status: tt.project_status,
+              project_status: statusNormalizer(tt.project_status),
               task_name: tt.task_name,
-              default_priority: tt.default_priority,
+              category_id: tt.category_name ? categoryMap.get(tt.category_name) : null,
+              default_priority: tt.default_priority || 'medium',
               created_by: uid
             })
-          if (ttErr) throw ttErr
+          if (ttErr) {
+            addLog(`❌ Lỗi template "${tt.task_name}": ${ttErr.message}`)
+            throw ttErr
+          }
         }
+        addLog(`✅ Đã xong mẫu công việc`)
       }
 
       addLog('Import HOÀN TẤT THÀNH CÔNG! ✨')
       setIsDone(true)
     } catch (err: any) {
-      console.error(err)
-      setError(err.message || 'Lỗi không xác định trong quá trình import.')
-      addLog('DỪNG: Đã xảy ra lỗi.')
+      console.error('CRITICAL IMPORT ERROR:', err)
+      let msg = 'Unknown Error'
+      if (typeof err === 'string') msg = err
+      else if (err && err.message) msg = err.message
+      else if (err && err.details) msg = err.details
+      else {
+        try {
+          msg = JSON.stringify(err, Object.getOwnPropertyNames(err))
+        } catch (e) {
+          msg = String(err)
+        }
+      }
+      setError(msg)
+      addLog(`❌ LỖI: ${msg}`)
     } finally {
       setLoading(false)
     }
@@ -183,9 +310,12 @@ export default function DebugImportPage() {
           <CardDescription className="text-slate-500 font-medium">
             Công cụ này chỉ khả dụng trong môi trường local development.
           </CardDescription>
-          <Button asChild className="w-full rounded-2xl h-12">
-            <Link href="/">Quay về trang chủ</Link>
-          </Button>
+          <Link 
+            href="/" 
+            className={cn(buttonVariants({ variant: 'default', size: 'default' }), "w-full rounded-2xl h-12")}
+          >
+            Quay về trang chủ
+          </Link>
         </Card>
       </div>
     )

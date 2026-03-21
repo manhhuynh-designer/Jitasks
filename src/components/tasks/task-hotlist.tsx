@@ -1,78 +1,205 @@
 'use client'
 
 import { useState } from 'react'
-import { Check, CheckCircle2, Clock, Calendar, AlertTriangle, MoreHorizontal, User, Sparkles, Briefcase } from 'lucide-react'
+import { 
+  Check, 
+  CheckCircle2, 
+  Clock, 
+  Calendar, 
+  AlertTriangle, 
+  MoreHorizontal, 
+  User, 
+  Sparkles, 
+  Briefcase, 
+  Flag,
+  Circle,
+  PlayCircle
+} from 'lucide-react'
+import { getPriorityInfo } from '@/lib/priority-utils'
 import { cn } from '@/lib/utils'
 import { EditTaskDialog } from '@/components/tasks/edit-task-dialog'
+import { supabase } from '@/lib/supabase'
+import { format } from 'date-fns'
+import { vi } from 'date-fns/locale'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
-export function TaskHotlist({ tasks, title }: { tasks: any[], title?: string }) {
+const STATUS_CONFIG: any = {
+  todo: { label: 'To Do', color: 'bg-slate-500', ghost: 'bg-slate-100 text-slate-500', icon: Circle },
+  inprogress: { label: 'In Progress', color: 'bg-sky-400', ghost: 'bg-sky-50 text-sky-600', icon: PlayCircle },
+  pending: { label: 'Pending', color: 'bg-orange-400', ghost: 'bg-orange-50 text-orange-600', icon: Clock },
+  done: { label: 'Done', color: 'bg-emerald-500', ghost: 'bg-emerald-50 text-emerald-600', icon: CheckCircle2 },
+}
+
+export function TaskHotlist({ 
+  tasks, 
+  title, 
+  onStatusChange,
+  filter = 'today',
+  upcomingRange = 'all'
+}: { 
+  tasks: any[], 
+  title?: string, 
+  onStatusChange?: () => void,
+  filter?: 'today' | 'upcoming',
+  upcomingRange?: '7' | '30' | 'all'
+}) {
   const [selectedTask, setSelectedTask] = useState<any>(null)
+
+  const updateTaskStatus = async (taskId: string, newStatus: string) => {
+    const { error } = await supabase.from('tasks').update({ status: newStatus }).eq('id', taskId)
+    if (!error && onStatusChange) {
+      onStatusChange()
+    }
+  }
+
+  const sortedTasks = [...tasks]
+    .filter(t => t.status !== 'done')
+    .filter(t => {
+      if (!t.deadline) return filter === 'upcoming' && upcomingRange === 'all'
+      
+      const today = new Date()
+      today.setHours(0,0,0,0)
+      const taskDate = new Date(t.deadline)
+      taskDate.setHours(0,0,0,0)
+      
+      if (filter === 'today') {
+        return taskDate.getTime() <= today.getTime()
+      } else {
+        if (taskDate.getTime() <= today.getTime()) return false
+        
+        if (upcomingRange === '7') {
+          const nextWeek = new Date(today)
+          nextWeek.setDate(today.getDate() + 7)
+          return taskDate.getTime() <= nextWeek.getTime()
+        }
+        if (upcomingRange === '30') {
+          const nextMonth = new Date(today)
+          nextMonth.setDate(today.getDate() + 30)
+          return taskDate.getTime() <= nextMonth.getTime()
+        }
+        return true
+      }
+    })
+    .sort((a, b) => {
+      const today = new Date()
+      today.setHours(0,0,0,0)
+      const dA = new Date(a.deadline || 0)
+      dA.setHours(0,0,0,0)
+      const dB = new Date(b.deadline || 0)
+      dB.setHours(0,0,0,0)
+      
+      const isAOverdue = dA < today
+      const isBOverdue = dB < today
+      
+      if (isAOverdue && !isBOverdue) return -1
+      if (!isAOverdue && isBOverdue) return 1
+      
+      const priorityWeight: any = { critical: 3, high: 2, medium: 1, low: 0 }
+      const pA = priorityWeight[a.priority] || 0
+      const pB = priorityWeight[b.priority] || 0
+      if (pA !== pB) return pB - pA
+      
+      return dA.getTime() - dB.getTime()
+    })
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-black text-slate-800 tracking-tight">{title || "Tasks to Process"}</h3>
-        <span className="px-3 py-1 bg-amber-100 text-amber-600 rounded-full text-xs font-black uppercase tracking-widest">
-          {tasks.filter(t => t.status !== 'done').length} Urgent
-        </span>
-      </div>
-
-      <div className="space-y-4">
-        {tasks.length > 0 ? (
-          tasks.map(task => (
+      <div className="space-y-3">
+        {sortedTasks.length > 0 ? (
+          sortedTasks.map(task => (
             <div 
               key={task.id} 
               onClick={() => setSelectedTask(task)}
-              className="group flex items-start gap-4 p-4 rounded-2xl bg-white/90 border border-white/80 hover:border-primary/20 hover:bg-white/100 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300 cursor-pointer"
+              className={cn(
+                "group flex items-start gap-4 p-4 rounded-2xl bg-white border border-rose-100 transition-all duration-300 cursor-pointer hover:scale-[1.02] hover:border-rose-300 shadow-sm",
+                filter === 'today' ? "hover:shadow-lg hover:shadow-rose-100/50" : "hover:shadow-lg hover:shadow-primary/5"
+              )}
             >
-              <div className="mt-0.5">
-                {task.status === 'done' ? (
-                  <div className="h-5 w-5 rounded-full bg-emerald-500/10 flex items-center justify-center">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                  </div>
-                ) : (
-                  <div className={cn("h-5 w-5 rounded-full border-2 flex items-center justify-center transition-colors", 
-                    task.priority === 'critical' ? 'border-rose-400 bg-rose-50' : 'border-slate-200 group-hover:border-primary/30'
-                  )}>
-                    {task.priority === 'critical' && <div className="h-1.5 w-1.5 rounded-full bg-rose-500 animate-pulse" />}
-                  </div>
-                )}
+              <div className="mt-0.5" onClick={(e) => e.stopPropagation()}>
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    render={
+                      <button 
+                        className={cn(
+                          "h-8 w-8 rounded-xl flex items-center justify-center transition-all border-2 text-white shadow-sm",
+                          STATUS_CONFIG[task.status as keyof typeof STATUS_CONFIG]?.color || 'bg-slate-400',
+                          "border-transparent hover:scale-110 active:scale-95"
+                        )}
+                      >
+                        {(() => {
+                          const Icon = STATUS_CONFIG[task.status as keyof typeof STATUS_CONFIG]?.icon || Circle
+                          return <Icon className="h-4 w-4" />
+                        })()}
+                      </button>
+                    }
+                  />
+                  <DropdownMenuContent className="rounded-2xl border-none glass-premium shadow-2xl p-2 w-44">
+                    {Object.entries(STATUS_CONFIG).map(([key, config]: [string, any]) => (
+                      <DropdownMenuItem 
+                        key={key} 
+                        onClick={() => updateTaskStatus(task.id, key)}
+                        className="rounded-xl px-4 py-2 cursor-pointer focus:bg-primary/10 focus:text-primary font-bold text-[10px] uppercase tracking-widest gap-2"
+                      >
+                        <div className={cn("h-2 w-2 rounded-full", config.color)} />
+                        {config.label}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
-
-              <div className="flex-1 space-y-1">
-                <div className="flex items-center justify-between">
-                  <h4 className={cn("text-sm font-bold transition-all", 
-                    task.status === 'done' ? 'text-slate-400 line-through' : 'text-slate-800 group-hover:text-primary'
-                  )}>
-                    {task.name}
-                  </h4>
-                  <button className="text-slate-300 hover:text-slate-500 transition-colors">
-                    <MoreHorizontal className="h-4 w-4" />
-                  </button>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-bold text-slate-400 mt-2">
-                  {task.projects && (
-                    <div className="flex items-center gap-1.5 text-slate-500 bg-slate-100/80 px-2 py-0.5 rounded-lg border border-slate-200/60 max-w-[120px]">
-                      <Briefcase className="h-3 w-3 shrink-0" />
-                      <span className="truncate">{task.projects.name}</span>
-                    </div>
-                  )}
-                  <div className="flex items-center gap-1.5">
-                    <Calendar className="h-3.5 w-3.5" />
-                    <span>{new Date(task.deadline).toLocaleDateString('vi-VN')}</span>
-                  </div>
-                  {task.priority === 'critical' && (
-                    <div className="flex items-center gap-1.5 text-rose-500 font-black uppercase tracking-tight">
-                      <AlertTriangle className="h-3.5 w-3.5" />
-                      <span>Critical</span>
-                    </div>
-                  )}
-                  {task.assignee_id && task.assignees && (
-                    <div className="flex items-center gap-1.5">
-                      <div className="h-4 w-4 rounded-full bg-indigo-100 flex items-center justify-center overflow-hidden">
-                        <User className="h-2.5 w-2.5 text-indigo-500" />
+              
+              <div className="flex-1 min-w-0 space-y-2">
+                <div className="flex items-center justify-between gap-2 overflow-hidden">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest truncate">
+                    {task.projects?.name || "Dự án"} {task.project_categories?.name ? ` / ${task.project_categories.name}` : ''} {task.task_groups?.name ? ` / ${task.task_groups.name}` : ''}
+                  </span>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {task.task_time && (
+                      <div className="flex items-center gap-1 text-[10px] font-black text-primary bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100/50">
+                        <Clock className="h-3 w-3" />
+                        {task.task_time}
                       </div>
-                      <span>{task.assignees.full_name}</span>
+                    )}
+                    {task.deadline && (
+                      <div className="flex items-center gap-1 text-[10px] font-bold text-rose-500/80 bg-rose-50 px-2.5 py-0.5 rounded-full">
+                        <Calendar className="h-3 w-3" />
+                        {format(new Date(task.deadline), 'dd/MM')}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                <h4 className={cn("text-sm font-bold leading-tight transition-all", 
+                  task.status === 'done' ? 'text-slate-400 line-through' : 'text-slate-800 group-hover:text-primary'
+                )}>
+                  {task.name}
+                </h4>
+
+                <div className="flex items-center flex-wrap gap-3">
+                  <div className={cn(
+                    "flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest",
+                    getPriorityInfo(task.priority).bgLight,
+                    getPriorityInfo(task.priority).text
+                  )}>
+                    {(() => {
+                      const pInfo = getPriorityInfo(task.priority)
+                      const Icon = pInfo.icon
+                      return <Icon className="h-3.5 w-3.5 fill-current" />
+                    })()}
+                    {task.priority}
+                  </div>
+                  
+                  {task.assignees && (
+                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400">
+                      <div className="h-4 w-4 rounded-full bg-slate-100 flex items-center justify-center overflow-hidden">
+                        <User className="h-3 w-3 text-slate-400" />
+                      </div>
+                      <span className="truncate max-w-[100px]">{task.assignees.name || task.assignees.full_name}</span>
                     </div>
                   )}
                 </div>
@@ -86,7 +213,9 @@ export function TaskHotlist({ tasks, title }: { tasks: any[], title?: string }) 
             </div>
             <div className="space-y-1">
               <p className="text-slate-800 font-bold text-base">Mọi thứ đã gọn gàng</p>
-              <p className="text-slate-400 text-xs font-medium italic">Không có công việc khẩn cấp nào.</p>
+              <p className="text-slate-400 text-xs font-medium italic">
+                {filter === 'today' ? "Không có công việc cần xử lý trong hôm nay." : "Hiện chưa có kế hoạch cho những ngày sắp tới."}
+              </p>
             </div>
           </div>
         )}

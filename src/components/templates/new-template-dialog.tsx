@@ -17,8 +17,6 @@ import { Label } from '@/components/ui/label'
 import { Plus, ListChecks, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-// Removed hardcoded STATUS_OPTIONS
-
 const PRIORITY_OPTIONS = [
   { value: 'low', label: 'Low', color: 'bg-slate-100 text-slate-600' },
   { value: 'medium', label: 'Medium', color: 'bg-amber-100 text-amber-600' },
@@ -39,13 +37,15 @@ export function NewTemplateDialog({
   const [taskName, setTaskName] = useState('')
   const [projectStatus, setProjectStatus] = useState<string>(defaultStatus || '')
   const [priority, setPriority] = useState('medium')
-  const [categories, setCategories] = useState<{name: string, color: string}[]>([])
+  const [categories, setCategories] = useState<{id: string, name: string, color: string}[]>([])
+  const [taskGroups, setTaskGroups] = useState<{id: string, name: string}[]>([])
+  const [taskGroupId, setTaskGroupId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     if (open) {
       const fetchCategories = async () => {
-        const { data } = await supabase.from('project_categories').select('name, color').order('order_index')
+        const { data } = await supabase.from('project_categories').select('id, name, color').order('order_index')
         if (data) {
            setCategories(data)
            if (!projectStatus && data.length > 0) setProjectStatus(data[0].name)
@@ -54,7 +54,24 @@ export function NewTemplateDialog({
       }
       fetchCategories()
     }
-  }, [open, defaultStatus, projectStatus])
+  }, [open, defaultStatus])
+
+  useEffect(() => {
+    const fetchGroups = async () => {
+      const cat = categories.find(c => c.name === projectStatus)
+      if (cat) {
+        const { data } = await supabase
+          .from('task_groups')
+          .select('id, name')
+          .eq('category_id', cat.id)
+          .order('order_index', { ascending: true })
+        if (data) setTaskGroups(data)
+      } else {
+        setTaskGroups([])
+      }
+    }
+    if (open && projectStatus) fetchGroups()
+  }, [projectStatus, categories, open])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -75,6 +92,7 @@ export function NewTemplateDialog({
           task_name: taskName, 
           project_status: projectStatus as any,
           default_priority: priority as any,
+          task_group_id: taskGroupId,
           created_by: user.id
         })
 
@@ -83,6 +101,7 @@ export function NewTemplateDialog({
         alert("Error: " + error.message)
       } else {
         setTaskName('')
+        setTaskGroupId(null)
         setOpen(false)
         if (onTemplateCreated) onTemplateCreated()
       }
@@ -154,6 +173,41 @@ export function NewTemplateDialog({
               ))}
             </div>
           </div>
+
+          {taskGroups.length > 0 && (
+            <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Thuộc nhóm (Tùy chọn)</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setTaskGroupId(null)}
+                  className={cn(
+                    "p-3 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all border-2 text-center",
+                    taskGroupId === null 
+                      ? "bg-slate-100 border-slate-300 text-slate-700 shadow-sm"
+                      : "bg-white/40 border-white/60 text-slate-400 hover:bg-white/80"
+                  )}
+                >
+                  Không có nhóm
+                </button>
+                {taskGroups.map((g) => (
+                  <button
+                    key={g.id}
+                    type="button"
+                    onClick={() => setTaskGroupId(g.id)}
+                    className={cn(
+                      "p-3 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all border-2 text-center truncate",
+                      taskGroupId === g.id 
+                        ? "bg-primary/10 border-primary/30 text-primary shadow-sm"
+                        : "bg-white/40 border-white/60 text-slate-400 hover:bg-white/80"
+                    )}
+                  >
+                    {g.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="space-y-4">
             <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Mức độ ưu tiên mặc định</Label>

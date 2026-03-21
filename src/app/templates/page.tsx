@@ -18,7 +18,7 @@ export default function TemplatesPage() {
   const fetchData = async () => {
     setLoading(true)
     const [{ data: tData }, { data: cData }] = await Promise.all([
-      supabase.from('task_templates').select('*').order('project_status'),
+      supabase.from('task_templates').select('*, task_groups(name)').order('project_status'),
       supabase.from('project_categories').select('*').order('order_index')
     ])
     
@@ -129,6 +129,11 @@ export default function TemplatesPage() {
                         <Badge variant="secondary" className="text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md bg-slate-100 text-slate-500 border-none">
                           Prio: {t.default_priority}
                         </Badge>
+                        {t.task_groups?.name && (
+                          <Badge variant="outline" className="text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md border-slate-200 text-slate-400 font-bold">
+                            {t.task_groups.name}
+                          </Badge>
+                        )}
                       </div>
                     </div>
                   </div>

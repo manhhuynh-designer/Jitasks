@@ -44,7 +44,7 @@ export default function RootLayout({
           <SidebarProvider>
             <div className="flex h-screen w-full">
               <AppSidebar />
-              <main className="flex-1 overflow-auto bg-slate-50">
+              <main className="flex-1 overflow-auto bg-slate-50 scroll-smooth snap-y snap-proximity">
                 <div className="p-4 md:p-8">
                   <header className="mb-8 flex items-center justify-between">
                     <div className="flex items-center gap-4">

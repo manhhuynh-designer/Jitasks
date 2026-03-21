@@ -39,3 +39,30 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.suo
+*.sln
+
+# OS generated files
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Supabase Local
+supabase/.temp/
+supabase/.branches/
+
+# Debug and testing files
+debug-test-data.json
+prompt.md
+issue.md
+
+# Agent generated runtime data
+.agents/sessions/
+.agents/logs/

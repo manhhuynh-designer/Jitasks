@@ -23,6 +23,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { format } from 'date-fns'
+import { Calendar } from '@/components/ui/calendar'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import { Calendar as CalendarIcon } from 'lucide-react'
 
 
 export function NewProjectDialog({ onProjectCreated }: { onProjectCreated?: () => void }) {
@@ -33,6 +41,7 @@ export function NewProjectDialog({ onProjectCreated }: { onProjectCreated?: () =
   const [suppliers, setSuppliers] = useState<{id: string, name: string}[]>([])
   const [categories, setCategories] = useState<{id: string, name: string, color: string}[]>([])
   const [loading, setLoading] = useState(false)
+  const [startDate, setStartDate] = useState<Date>(new Date())
   const router = useRouter()
 
   useEffect(() => {
@@ -98,7 +107,8 @@ export function NewProjectDialog({ onProjectCreated }: { onProjectCreated?: () =
           name,
           supplier_id: supplierId || null,
           status: status as any,
-          created_by: user.id
+          created_by: user.id,
+          created_at: startDate.toISOString()
         })
         .select()
         .single()
@@ -127,6 +137,7 @@ export function NewProjectDialog({ onProjectCreated }: { onProjectCreated?: () =
             priority: t.default_priority || 'medium',
             status: 'todo',
             deadline: new Date(Date.now() + 86400000 * 7).toISOString(), // +1 week
+            task_group_id: t.task_group_id,
             created_by: user.id
           }
         })
@@ -174,6 +185,35 @@ export function NewProjectDialog({ onProjectCreated }: { onProjectCreated?: () =
               required
               className="rounded-2xl h-12 bg-white/90 border-none focus-visible:ring-primary/20 font-medium"
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">Ngày Project</Label>
+            <Popover>
+              <PopoverTrigger
+                render={
+                  <Button
+                    variant={"outline"}
+                    className={cn(
+                      "w-full h-12 justify-start text-left font-medium rounded-2xl bg-white/90 border-none hover:bg-white/100 px-4",
+                      !startDate && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4 text-slate-400" />
+                    {startDate ? format(startDate, "dd/MM/yyyy") : <span>Chọn ngày</span>}
+                  </Button>
+                }
+              />
+              <PopoverContent className="w-auto p-0 rounded-2xl border-none shadow-2xl" align="start">
+                <Calendar
+                  mode="single"
+                  selected={startDate}
+                  onSelect={(date) => date && setStartDate(date)}
+                  initialFocus
+                  className="rounded-2xl"
+                />
+              </PopoverContent>
+            </Popover>
           </div>
 
           <div className="space-y-2">

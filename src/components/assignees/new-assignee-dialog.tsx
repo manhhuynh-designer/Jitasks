@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { 
   Dialog, 
@@ -14,20 +14,43 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Plus, UserPlus, Shield } from 'lucide-react'
+import { Plus, UserPlus, Shield, Pencil } from 'lucide-react'
+
 
 export function NewAssigneeDialog({ 
   onAssigneeCreated,
-  trigger
+  trigger,
+  assignee,
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange
 }: { 
   onAssigneeCreated?: () => void,
-  trigger?: React.ReactElement
+  trigger?: React.ReactElement,
+  assignee?: any,
+  open?: boolean,
+  onOpenChange?: (open: boolean) => void
 }) {
-  const [open, setOpen] = useState(false)
+  const [internalOpen, setInternalOpen] = useState(false)
+  const isControlled = controlledOpen !== undefined
+  const open = isControlled ? controlledOpen : internalOpen
+  const setOpen = isControlled ? controlledOnOpenChange! : setInternalOpen
+
   const [fullName, setFullName] = useState('')
   const [role, setRole] = useState('')
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (open && assignee) {
+      setFullName(assignee.full_name || '')
+      setRole(assignee.role || '')
+      setEmail(assignee.email || '')
+    } else if (open && !assignee) {
+      setFullName('')
+      setRole('')
+      setEmail('')
+    }
+  }, [open, assignee])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -35,32 +58,50 @@ export function NewAssigneeDialog({
 
     setLoading(true)
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        alert("Bạn chưa đăng nhập.")
-        setLoading(false)
-        return
-      }
+      if (assignee) {
+        const { error } = await supabase
+          .from('assignees')
+          .update({ 
+            full_name: fullName, 
+            role: role,
+            email: email
+          })
+          .eq('id', assignee.id)
 
-      const { error } = await supabase
-        .from('assignees')
-        .insert({ 
-          full_name: fullName, 
-          role: role,
-          email: email,
-          created_by: user.id
-        })
-
-      if (error) {
-        console.error("Full Error Object:", error)
-        alert(`Lỗi tạo nhân sự: ${error.message || 'Lỗi không xác định (RLS/Database)'}`)
+        if (error) {
+          console.error("Error updating assignee:", error)
+          alert(`Lỗi cập nhật nhân sự: ${error.message}`)
+        } else {
+          setOpen(false)
+          if (onAssigneeCreated) onAssigneeCreated()
+        }
       } else {
-        setFullName('')
-        setRole('')
-        setEmail('')
-        setOpen(false)
-        if (onAssigneeCreated) onAssigneeCreated()
-        else window.location.reload() // Fallback if no callback
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+          alert("Bạn chưa đăng nhập.")
+          setLoading(false)
+          return
+        }
+
+        const { error } = await supabase
+          .from('assignees')
+          .insert({ 
+            full_name: fullName, 
+            role: role,
+            email: email,
+            created_by: user.id
+          })
+
+        if (error) {
+          console.error("Full Error Object:", error)
+          alert(`Lỗi tạo nhân sự: ${error.message || 'Lỗi không xác định (RLS/Database)'}`)
+        } else {
+          setFullName('')
+          setRole('')
+          setEmail('')
+          setOpen(false)
+          if (onAssigneeCreated) onAssigneeCreated()
+        }
       }
     } catch (err) {
       console.error("Unexpected error:", err)
@@ -82,11 +123,11 @@ export function NewAssigneeDialog({
         <div className="p-8 pb-0">
           <DialogHeader className="space-y-3 text-left">
             <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center mb-2 mx-0 shadow-sm ring-4 ring-primary/[0.03]">
-              <UserPlus className="h-7 w-7 text-primary"></UserPlus>
+              {assignee ? <Pencil className="h-7 w-7 text-primary" /> : <UserPlus className="h-7 w-7 text-primary" />}
             </div>
-            <DialogTitle className="text-3xl font-black text-slate-900 tracking-tight">Mời Nhân Sự</DialogTitle>
+            <DialogTitle className="text-3xl font-black text-slate-900 tracking-tight">{assignee ? 'Sửa Nhân Sự' : 'Mời Nhân Sự'}</DialogTitle>
             <DialogDescription className="text-slate-500 font-medium text-sm">
-              Đăng ký thông tin định danh cho thành viên mới trong hệ thống.
+              {assignee ? 'Cập nhật lại thông tin định danh cho thành viên này.' : 'Đăng ký thông tin định danh cho thành viên mới trong hệ thống.'}
             </DialogDescription>
           </DialogHeader>
         </div>
@@ -129,7 +170,7 @@ export function NewAssigneeDialog({
           </div>
           <DialogFooter className="pt-4">
             <Button type="submit" disabled={loading} className="w-full rounded-[2rem] h-16 font-black text-lg shadow-xl shadow-primary/20 bg-primary text-white hover:bg-primary/95 transition-all hover:scale-[1.02] active:scale-[0.98]">
-              {loading ? 'Đang lưu...' : 'Lưu thông tin'}
+              {loading ? 'Đang lưu...' : (assignee ? 'Lưu thay đổi' : 'Lưu thông tin')}
             </Button>
           </DialogFooter>
         </form>

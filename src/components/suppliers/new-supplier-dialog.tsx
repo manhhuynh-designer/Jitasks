@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { 
   Dialog, 
@@ -14,17 +14,27 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Plus, Building2, Phone, MapPin, FileSignature, FileText } from 'lucide-react'
+import { Plus, Building2, Phone, MapPin, FileSignature, FileText, Pencil } from 'lucide-react'
 import { Textarea } from '@/components/ui/textarea'
 
 export function NewSupplierDialog({ 
   onSupplierCreated,
-  trigger
+  trigger,
+  supplier,
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange
 }: { 
   onSupplierCreated?: () => void,
-  trigger?: React.ReactElement
+  trigger?: React.ReactElement,
+  supplier?: any,
+  open?: boolean,
+  onOpenChange?: (open: boolean) => void
 }) {
-  const [open, setOpen] = useState(false)
+  const [internalOpen, setInternalOpen] = useState(false)
+  const isControlled = controlledOpen !== undefined
+  const open = isControlled ? controlledOpen : internalOpen
+  const setOpen = isControlled ? controlledOnOpenChange! : setInternalOpen
+
   const [name, setName] = useState('')
   const [contactInfo, setContactInfo] = useState('')
   const [address, setAddress] = useState('')
@@ -32,41 +42,79 @@ export function NewSupplierDialog({
   const [notes, setNotes] = useState('')
   const [loading, setLoading] = useState(false)
 
+
+  useEffect(() => {
+    if (open && supplier) {
+      setName(supplier.name || '')
+      setContactInfo(supplier.contact_info || '')
+      setAddress(supplier.address || '')
+      setTaxCode(supplier.tax_code || '')
+      setNotes(supplier.notes || '')
+    } else if (open && !supplier) {
+      setName('')
+      setContactInfo('')
+      setAddress('')
+      setTaxCode('')
+      setNotes('')
+    }
+  }, [open, supplier])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!name) return
 
     setLoading(true)
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        alert("Not logged in.")
-        setLoading(false)
-        return
-      }
+      if (supplier) {
+        const { error } = await supabase
+          .from('suppliers')
+          .update({ 
+            name, 
+            contact_info: contactInfo,
+            address,
+            tax_code: taxCode,
+            notes
+          })
+          .eq('id', supplier.id)
 
-      const { error } = await supabase
-        .from('suppliers')
-        .insert({ 
-          name, 
-          contact_info: contactInfo,
-          address,
-          tax_code: taxCode,
-          notes,
-          created_by: user.id
-        })
-
-      if (error) {
-        console.error("Error creating supplier:", error)
-        alert(`Error: ${error.message}`)
+        if (error) {
+          console.error("Error updating supplier:", error)
+          alert(`Error: ${error.message}`)
+        } else {
+          setOpen(false)
+          if (onSupplierCreated) onSupplierCreated()
+        }
       } else {
-        setName('')
-        setContactInfo('')
-        setAddress('')
-        setTaxCode('')
-        setNotes('')
-        setOpen(false)
-        if (onSupplierCreated) onSupplierCreated()
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+          alert("Not logged in.")
+          setLoading(false)
+          return
+        }
+
+        const { error } = await supabase
+          .from('suppliers')
+          .insert({ 
+            name, 
+            contact_info: contactInfo,
+            address,
+            tax_code: taxCode,
+            notes,
+            created_by: user.id
+          })
+
+        if (error) {
+          console.error("Error creating supplier:", error)
+          alert(`Error: ${error.message}`)
+        } else {
+          setName('')
+          setContactInfo('')
+          setAddress('')
+          setTaxCode('')
+          setNotes('')
+          setOpen(false)
+          if (onSupplierCreated) onSupplierCreated()
+        }
       }
     } catch (err) {
       console.error("Unexpected error:", err)
@@ -88,11 +136,11 @@ export function NewSupplierDialog({
         <div className="p-8 pb-0">
           <DialogHeader className="space-y-3 text-left">
             <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center mb-2 mx-0 shadow-sm ring-4 ring-primary/[0.03]">
-              <Building2 className="h-7 w-7 text-primary"></Building2>
+              {supplier ? <Pencil className="h-7 w-7 text-primary" /> : <Building2 className="h-7 w-7 text-primary" />}
             </div>
-            <DialogTitle className="text-3xl font-black text-slate-900 tracking-tight">Thêm Nhà Cung Cấp</DialogTitle>
+            <DialogTitle className="text-3xl font-black text-slate-900 tracking-tight">{supplier ? 'Sửa Nhà Cung Cấp' : 'Thêm Nhà Cung Cấp'}</DialogTitle>
             <DialogDescription className="text-slate-500 font-medium text-sm">
-              Thông tin nhà cung cấp sẽ được dùng để phân loại và quản lý dự án.
+              {supplier ? 'Cập nhật lại các thông tin của đối tác này.' : 'Thông tin nhà cung cấp sẽ được dùng để phân loại và quản lý dự án.'}
             </DialogDescription>
           </DialogHeader>
         </div>
@@ -169,7 +217,7 @@ export function NewSupplierDialog({
 
           <DialogFooter className="pt-4">
             <Button type="submit" disabled={loading} className="w-full rounded-[2rem] h-16 font-black text-lg shadow-xl shadow-primary/20 bg-primary text-white hover:bg-primary/95 transition-all hover:scale-[1.02] active:scale-[0.98]">
-              {loading ? 'Đang lưu...' : 'Lưu Nhà Cung Cấp'}
+              {loading ? 'Đang lưu...' : (supplier ? 'Lưu thay đổi' : 'Lưu Nhà Cung Cấp')}
             </Button>
           </DialogFooter>
         </form>

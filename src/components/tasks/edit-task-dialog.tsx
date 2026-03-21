@@ -13,7 +13,9 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Check, Calendar as CalendarIcon, ListTodo, Pencil, User, Trash2, Plus, Circle, PlayCircle, Clock, CheckCircle2 } from 'lucide-react'
+import { Badge } from '../ui/badge'
+import { Check, Calendar as CalendarIcon, ListTodo, Pencil, User, Trash2, Plus, Circle, PlayCircle, Clock, CheckCircle2, ExternalLink } from 'lucide-react'
+import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { format } from 'date-fns'
 import { Calendar } from '@/components/ui/calendar'
@@ -39,12 +41,7 @@ const STATUS_OPTIONS = [
   { value: 'done', label: 'Done', color: 'bg-green-500', icon: CheckCircle2 },
 ]
 
-const PRIORITY_OPTIONS = [
-  { value: 'low', label: 'Low', color: 'bg-slate-400' },
-  { value: 'medium', label: 'Medium', color: 'bg-indigo-400' },
-  { value: 'high', label: 'High', color: 'bg-rose-500' },
-  { value: 'critical', label: 'Critical', color: 'bg-red-600' },
-]
+import { PRIORITY_OPTIONS, getPriorityInfo } from '@/lib/priority-utils'
 
 export function EditTaskDialog({ 
   task, 
@@ -63,11 +60,14 @@ export function EditTaskDialog({
   const [status, setStatus] = useState(task.status)
   const [startDate, setStartDate] = useState<Date>(task.start_date ? new Date(task.start_date) : new Date())
   const [deadline, setDeadline] = useState<Date>(new Date(task.deadline))
+  const [taskTime, setTaskTime] = useState(task.task_time || '09:00')
   const [assigneeId, setAssigneeId] = useState<string | null>(task.assignee_id)
   const [categoryId, setCategoryId] = useState<string | null>(task.category_id || null)
+  const [taskGroupId, setTaskGroupId] = useState<string | null>(task.task_group_id || null)
   const [links, setLinks] = useState<{title: string, url: string}[]>(task.links || [])
   const [profiles, setProfiles] = useState<{id: string, full_name: string}[]>([])
-  const [categories, setCategories] = useState<{id: string, name: string}[]>([])
+  const [categories, setCategories] = useState<{id: string, name: string, color: string}[]>([])
+  const [taskGroups, setTaskGroups] = useState<{id: string, name: string}[]>([])
   const [loading, setLoading] = useState(false)
   
   useEffect(() => {
@@ -75,7 +75,7 @@ export function EditTaskDialog({
       const { data: profs } = await supabase.from('assignees').select('id, full_name').order('full_name')
       if (profs) setProfiles(profs)
 
-      const { data: cats } = await supabase.from('project_categories').select('id, name').order('order_index', { ascending: true })
+      const { data: cats } = await supabase.from('project_categories').select('id, name, color').order('order_index', { ascending: true })
       if (cats) setCategories(cats)
     }
     
@@ -86,12 +86,30 @@ export function EditTaskDialog({
       setStatus(task.status)
       setStartDate(task.start_date ? new Date(task.start_date) : new Date())
       setDeadline(new Date(task.deadline))
+      setTaskTime(task.task_time || '09:00')
       setAssigneeId(task.assignee_id)
       setCategoryId(task.category_id || null)
+      setTaskGroupId(task.task_group_id || null)
       setLinks(task.links || [])
       fetchData()
     }
   }, [open, task])
+
+  useEffect(() => {
+    const fetchGroups = async () => {
+      if (categoryId) {
+        const { data } = await supabase
+          .from('task_groups')
+          .select('id, name')
+          .eq('category_id', categoryId)
+          .order('order_index', { ascending: true })
+        if (data) setTaskGroups(data)
+      } else {
+        setTaskGroups([])
+      }
+    }
+    if (open) fetchGroups()
+  }, [categoryId, open])
 
   const addLink = () => setLinks([...links, { title: '', url: '' }])
   const removeLink = (index: number) => setLinks(links.filter((_, i) => i !== index))
@@ -116,8 +134,10 @@ export function EditTaskDialog({
           priority: priority as any,
           status: status as any,
           category_id: categoryId,
+          task_group_id: taskGroupId,
           start_date: startDate.toISOString(),
           deadline: deadline.toISOString(),
+          task_time: taskTime,
           assignee_id: assigneeId,
           links: links.filter(l => l.url)
         })
@@ -148,8 +168,15 @@ export function EditTaskDialog({
               <Pencil className="h-6 w-6 text-primary"></Pencil>
             </div>
             <DialogTitle className="text-2xl font-black text-slate-800 tracking-tight">Sửa Task</DialogTitle>
-            <DialogDescription className="text-muted-foreground font-medium">
-              Cập nhật thông tin chi tiết cho task.
+            <DialogDescription className="text-muted-foreground font-medium flex items-center gap-2">
+              {task.projects && (
+                <Link 
+                  href={`/projects/${task.project_id}`}
+                  className="bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 font-black px-3 py-1 rounded-lg text-[11px] uppercase cursor-pointer transition-colors inline-flex items-center"
+                >
+                  {task.projects.name}
+                </Link>
+              )}
             </DialogDescription>
           </DialogHeader>
         </div>
@@ -164,7 +191,7 @@ export function EditTaskDialog({
                 value={name}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
                 required
-                className="rounded-2xl h-12 bg-white/90 border-none focus-visible:ring-primary/20 font-medium"
+                className="rounded-xl h-12 bg-white/90 border-none focus-visible:ring-primary/20 font-medium"
               />
             </div>
 
@@ -175,7 +202,7 @@ export function EditTaskDialog({
                 placeholder="Chi tiết công việc..." 
                 value={description}
                 onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setDescription(e.target.value)}
-                className="rounded-2xl min-h-[80px] bg-white/90 border-none focus-visible:ring-primary/20 font-medium resize-none text-xs"
+                className="rounded-xl min-h-[80px] bg-white/90 border-none focus-visible:ring-primary/20 font-medium resize-none text-xs"
               />
             </div>
 
@@ -188,7 +215,7 @@ export function EditTaskDialog({
                       <Button
                         variant={"outline"}
                         className={cn(
-                          "w-full h-11 justify-start text-left font-medium rounded-2xl bg-white/90 border-none hover:bg-white/100 px-4 text-xs",
+                          "w-full h-11 justify-start text-left font-medium rounded-xl bg-white/90 border-none hover:bg-white/100 px-4 text-xs",
                           !startDate && "text-muted-foreground"
                         )}
                       >
@@ -197,13 +224,13 @@ export function EditTaskDialog({
                       </Button>
                     }
                   />
-                  <PopoverContent className="w-auto p-0 rounded-2xl border-none shadow-2xl" align="start">
+                  <PopoverContent className="w-auto p-0 rounded-xl border-none shadow-2xl" align="start">
                     <Calendar
                       mode="single"
                       selected={startDate}
                       onSelect={(date) => date && setStartDate(date)}
                       initialFocus
-                      className="rounded-2xl"
+                      className="rounded-xl"
                     />
                   </PopoverContent>
                 </Popover>
@@ -216,7 +243,7 @@ export function EditTaskDialog({
                       <Button
                         variant={"outline"}
                         className={cn(
-                          "w-full h-11 justify-start text-left font-medium rounded-2xl bg-white/90 border-none hover:bg-white/100 px-4 text-xs",
+                          "w-full h-11 justify-start text-left font-medium rounded-xl bg-white/90 border-none hover:bg-white/100 px-4 text-xs",
                           !deadline && "text-muted-foreground"
                         )}
                       >
@@ -225,13 +252,13 @@ export function EditTaskDialog({
                       </Button>
                     }
                   />
-                  <PopoverContent className="w-auto p-0 rounded-2xl border-none shadow-2xl" align="start">
+                  <PopoverContent className="w-auto p-0 rounded-xl border-none shadow-2xl" align="start">
                     <Calendar
                       mode="single"
                       selected={deadline}
                       onSelect={(date) => date && setDeadline(date)}
                       initialFocus
-                      className="rounded-2xl"
+                      className="rounded-xl"
                     />
                   </PopoverContent>
                 </Popover>
@@ -239,17 +266,33 @@ export function EditTaskDialog({
             </div>
 
             <div className="space-y-2">
+              <Label htmlFor="et-time" className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">Giờ (hh:mm)</Label>
+              <div className="relative group">
+                <Clock className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-primary transition-colors" />
+                <Input 
+                  id="et-time" 
+                  type="time"
+                  value={taskTime}
+                  onChange={(e) => setTaskTime(e.target.value)}
+                  className="pl-11 rounded-xl h-12 bg-white/90 border-none focus-visible:ring-primary/20 font-bold text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
               <Label className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">Người thực hiện</Label>
               <Select value={assigneeId || ""} onValueChange={setAssigneeId}>
-                <SelectTrigger className="h-11 rounded-2xl bg-white/90 border-none hover:bg-white/100 px-4 text-xs font-medium">
+                <SelectTrigger className="h-11 rounded-xl bg-white/90 border-none hover:bg-white/100 px-4 text-xs font-medium">
                   <div className="flex items-center gap-2">
                     <User className="h-3.5 w-3.5 text-slate-400" />
-                    <SelectValue placeholder="Chọn người thực hiện" />
+                    <SelectValue placeholder="Chọn người thực hiện">
+                      {profiles.find(p => p.id === assigneeId)?.full_name}
+                    </SelectValue>
                   </div>
                 </SelectTrigger>
-                <SelectContent className="rounded-2xl border-none glass-premium shadow-2xl p-2">
+                <SelectContent className="rounded-xl border-none glass-premium shadow-2xl p-2">
                   {profiles.map(p => (
-                    <SelectItem key={p.id} value={p.id} className="rounded-xl px-4 py-2 cursor-pointer focus:bg-primary/10 focus:text-primary font-medium text-xs">
+                    <SelectItem key={p.id} value={p.id} className="rounded-lg px-4 py-2 cursor-pointer focus:bg-primary/10 focus:text-primary font-medium text-xs">
                       {p.full_name}
                     </SelectItem>
                   ))}
@@ -279,6 +322,21 @@ export function EditTaskDialog({
                       onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateLink(idx, 'url', e.target.value)}
                       className="rounded-xl h-9 bg-white/90 border-none text-[10px] font-medium flex-[2]"
                     />
+                    {link.url && (
+                      <Button 
+                        type="button" 
+                        variant="ghost" 
+                        size="icon" 
+                        onClick={() => {
+                          const url = link.url.startsWith('http') ? link.url : `https://${link.url}`;
+                          window.open(url, '_blank');
+                        }}
+                        className="h-9 w-9 rounded-xl text-primary hover:bg-primary/10 transition-colors"
+                        title="Mở link"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </Button>
+                    )}
                     <Button type="button" variant="ghost" size="icon" onClick={() => removeLink(idx)} className="h-9 w-9 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50">
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
@@ -287,59 +345,98 @@ export function EditTaskDialog({
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="flex flex-col gap-6">
               <div className="space-y-3">
                 <Label className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">Giai đoạn</Label>
-                <Select value={categoryId || ""} onValueChange={setCategoryId}>
-                  <SelectTrigger className="h-11 rounded-2xl bg-white/90 border-none hover:bg-white/100 px-4 text-xs font-medium">
-                    <SelectValue placeholder="Chọn giai đoạn" />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-2xl border-none glass-premium shadow-2xl p-2">
-                    {categories.map(c => (
-                      <SelectItem key={c.id} value={c.id} className="rounded-xl px-4 py-2 cursor-pointer focus:bg-primary/10 focus:text-primary font-medium text-xs">
-                        {c.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex flex-wrap gap-2">
+                  {categories.map(c => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => setCategoryId(c.id)}
+                      className={cn(
+                        "flex items-center gap-1.5 px-4 py-2 rounded-xl text-[10px] font-black tracking-widest uppercase transition-all border outline-none",
+                        categoryId === c.id 
+                          ? `text-white border-transparent shadow-lg ${c.color}`
+                          : "bg-white/60 text-slate-400 border-white hover:bg-white"
+                      )}
+                    >
+                      {c.name}
+                    </button>
+                  ))}
+                </div>
               </div>
 
-              <div className="space-y-3">
-                <Label className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">Trạng thái</Label>
-                <Select value={status} onValueChange={(v) => v && setStatus(v as any)}>
-                  <SelectTrigger className="h-11 rounded-2xl bg-white/90 border-none hover:bg-white/100 px-4 text-xs font-medium">
-                    <SelectValue placeholder="Chọn trạng thái" />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-2xl border-none glass-premium shadow-2xl p-2">
-                    {STATUS_OPTIONS.map(s => (
-                      <SelectItem key={s.value} value={s.value} className="rounded-xl px-4 py-2 cursor-pointer focus:bg-primary/10 focus:text-primary font-medium text-xs">
-                        <div className="flex items-center gap-2">
-                          <div className={cn("h-1.5 w-1.5 rounded-full", s.color)} />
+              {taskGroups.length > 0 && (
+                <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                   <Label className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">Nhóm Task</Label>
+                   <Select value={taskGroupId || "none"} onValueChange={(val) => setTaskGroupId(val === "none" ? null : val)}>
+                     <SelectTrigger className="h-11 rounded-xl bg-white/90 border-none hover:bg-white/100 px-4 text-xs font-medium">
+                       <SelectValue placeholder="Chọn nhóm task" />
+                     </SelectTrigger>
+                     <SelectContent className="rounded-xl border-none glass-premium shadow-2xl p-2">
+                       <SelectItem value="none" className="rounded-lg px-4 py-2 cursor-pointer focus:bg-primary/10 focus:text-primary font-medium text-xs">
+                         -- Không có nhóm --
+                       </SelectItem>
+                       {taskGroups.map(g => (
+                         <SelectItem key={g.id} value={g.id} className="rounded-lg px-4 py-2 cursor-pointer focus:bg-primary/10 focus:text-primary font-medium text-xs">
+                           {g.name}
+                         </SelectItem>
+                       ))}
+                     </SelectContent>
+                   </Select>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-3">
+                  <Label className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">Trạng thái</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {STATUS_OPTIONS.map(s => {
+                      const Icon = s.icon;
+                      return (
+                        <button
+                          key={s.value}
+                          type="button"
+                          onClick={() => setStatus(s.value as any)}
+                          className={cn(
+                            "flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all border outline-none",
+                            status === s.value 
+                              ? `text-white ${s.color} border-transparent shadow-md`
+                              : "bg-white/60 text-slate-500 border-white hover:bg-white"
+                          )}
+                        >
+                          <Icon className={cn("h-3.5 w-3.5", status === s.value ? "text-white" : "text-slate-400")} />
                           {s.label}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
 
-              <div className="space-y-3">
-                <Label className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">Độ ưu tiên</Label>
-                <Select value={priority} onValueChange={(v) => v && setPriority(v as any)}>
-                  <SelectTrigger className="h-11 rounded-2xl bg-white/90 border-none hover:bg-white/100 px-4 text-xs font-medium">
-                    <SelectValue placeholder="Chọn độ ưu tiên" />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-2xl border-none glass-premium shadow-2xl p-2">
+                <div className="space-y-3">
+                  <Label className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">Độ ưu tiên</Label>
+                  <div className="flex flex-wrap gap-2">
                     {PRIORITY_OPTIONS.map(p => (
-                      <SelectItem key={p.value} value={p.value} className="rounded-xl px-4 py-2 cursor-pointer focus:bg-primary/10 focus:text-primary font-medium text-xs">
-                        <div className="flex items-center gap-2">
-                          <div className={cn("h-1.5 w-1.5 rounded-full", p.color)} />
-                          {p.label}
-                        </div>
-                      </SelectItem>
+                      <button
+                        key={p.value}
+                        type="button"
+                        onClick={() => setPriority(p.value as any)}
+                        className={cn(
+                          "flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border outline-none",
+                          priority === p.value 
+                            ? `text-white ${p.color} border-transparent shadow-lg`
+                            : "bg-white/60 text-slate-400 border-white hover:bg-white"
+                        )}
+                      >
+                        <p.icon className={cn("h-3.5 w-3.5 fill-current", 
+                          priority === p.value ? "text-white" : p.text
+                        )} />
+                        {p.label}
+                      </button>
                     ))}
-                  </SelectContent>
-                </Select>
+                  </div>
+                </div>
               </div>
             </div>
           </form>

@@ -25,6 +25,13 @@ export type ProjectCategory = {
   order_index: number
 }
 
+export type TaskGroup = {
+  id: string
+  name: string
+  category_id: string
+  order_index: number
+}
+
 const COLORS = [
   { name: 'Blue', value: 'bg-blue-500' },
   { name: 'Amber', value: 'bg-amber-500' },
@@ -47,15 +54,25 @@ export default function CategoryManagement() {
   const [isAdding, setIsAdding] = useState(false)
   const [saving, setSaving] = useState(false)
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null)
+  const [isAddingGroupTo, setIsAddingGroupTo] = useState<string | null>(null)
+  const [newGroupName, setNewGroupName] = useState('')
+  
 
   const fetchCategories = async () => {
     setLoading(true)
     const { data, error } = await supabase
       .from('project_categories')
-      .select('*')
+      .select('*, task_groups(*)')
       .order('order_index', { ascending: true })
     
-    if (data) setCategories(data)
+    if (data) {
+      // Sort nested task_groups by order_index manually if needed or handle in query
+      const sortedData = data.map(cat => ({
+        ...cat,
+        task_groups: cat.task_groups?.sort((a: any, b: any) => a.order_index - b.order_index) || []
+      }))
+      setCategories(sortedData)
+    }
     setLoading(false)
   }
 
@@ -131,6 +148,58 @@ export default function CategoryManagement() {
     } catch (err) {
       console.error('Unexpected error:', err)
       alert('Lỗi xóa không xác định.')
+    }
+  }
+
+
+  const handleAddGroup = async (catId: string) => {
+    if (!newGroupName) return
+    
+    const cat = categories.find(c => c.id === catId)
+    const groups = (cat as any)?.task_groups || []
+    const maxOrder = groups.length > 0 ? Math.max(...groups.map((g: any) => g.order_index)) : 0
+    
+    const { error } = await supabase
+      .from('task_groups')
+      .insert({
+        name: newGroupName,
+        category_id: catId,
+        order_index: maxOrder + 1,
+        created_by: (await supabase.auth.getUser()).data.user?.id
+      })
+    
+    if (error) {
+      alert(`Lỗi: ${error.message}`)
+    } else {
+      setNewGroupName('')
+      setIsAddingGroupTo(null)
+      fetchCategories()
+    }
+  }
+
+  const handleDeleteGroup = async (id: string) => {
+    const { error } = await supabase
+      .from('task_groups')
+      .delete()
+      .eq('id', id)
+    
+    if (error) {
+      alert(`Lỗi: ${error.message}`)
+    } else {
+      fetchCategories()
+    }
+  }
+
+  const handleUpdateGroup = async (id: string, name: string) => {
+    const { error } = await supabase
+      .from('task_groups')
+      .update({ name })
+      .eq('id', id)
+    
+    if (error) {
+       alert(`Lỗi: ${error.message}`)
+    } else {
+       fetchCategories()
     }
   }
 
@@ -270,14 +339,6 @@ export default function CategoryManagement() {
                         <Button 
                           variant="ghost" 
                           size="icon" 
-                          onClick={() => setEditingId(category.id)}
-                          className="h-10 w-10 rounded-xl text-slate-400 hover:text-primary hover:bg-primary/10"
-                        >
-                          <Pencil className="h-5 w-5" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
                           onClick={() => setConfirmingDeleteId(category.id)}
                           className="h-10 w-10 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50"
                         >
@@ -287,6 +348,82 @@ export default function CategoryManagement() {
                     )}
                   </div>
                 </CardContent>
+
+                <div className="px-14 pb-6 pt-2 animate-in slide-in-from-top-4 fade-in duration-300">
+                  <div className="bg-slate-50/50 rounded-2xl p-6 border border-slate-100 space-y-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Các nhóm Task</Label>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => setIsAddingGroupTo(category.id)}
+                        className="h-8 px-3 rounded-xl text-primary font-bold text-[10px] uppercase tracking-widest gap-2 hover:bg-primary/10"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        Thêm nhóm
+                      </Button>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      {((category as any).task_groups || []).map((group: any) => (
+                        <div key={group.id} className="flex items-center gap-3 bg-white p-2 rounded-xl border border-slate-100 shadow-sm group/item">
+                          <GripVertical className="h-4 w-4 text-slate-200" />
+                          <Input 
+                            value={group.name}
+                            onChange={(e) => {
+                              const updatedCats = categories.map(c => {
+                                if (c.id === category.id) {
+                                  return {
+                                    ...c,
+                                    task_groups: (c as any).task_groups.map((g: any) => g.id === group.id ? { ...g, name: e.target.value } : g)
+                                  }
+                                }
+                                return c
+                              })
+                              setCategories(updatedCats)
+                            }}
+                            onBlur={() => handleUpdateGroup(group.id, group.name)}
+                            className="h-8 border-none bg-transparent font-bold text-sm focus-visible:ring-0 px-1"
+                          />
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            onClick={() => handleDeleteGroup(group.id)}
+                            className="h-8 w-8 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover/item:opacity-100 transition-opacity"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      ))}
+                      
+                      {isAddingGroupTo === category.id && (
+                        <div className="flex items-center gap-2 pt-2 animate-in slide-in-from-left-2 duration-200">
+                          <Input 
+                            autoFocus
+                            placeholder="Tên nhóm task mới..." 
+                            value={newGroupName}
+                            onChange={(e) => setNewGroupName(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleAddGroup(category.id)}
+                            onBlur={() => !newGroupName && setIsAddingGroupTo(null)}
+                            className="h-10 rounded-xl bg-white border-slate-200 font-medium text-sm"
+                          />
+                          <Button 
+                            onClick={() => handleAddGroup(category.id)}
+                            disabled={!newGroupName}
+                            className="h-10 w-10 rounded-xl bg-primary hover:bg-primary/90 text-white shrink-0 shadow-lg shadow-primary/20"
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
+
+                      {((category as any).task_groups || []).length === 0 && !isAddingGroupTo && (
+                        <p className="text-[10px] text-slate-400 font-medium italic text-center py-2">Chưa có nhóm nào trong giai đoạn này.</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
               </Card>
             ))}
 

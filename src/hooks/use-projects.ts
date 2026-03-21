@@ -31,7 +31,7 @@ export function useProjects(statusFilter?: string) {
     }
 
     const { data: pData, error } = await query
-    const { data: cData } = await supabase.from('project_categories').select('name, color')
+    const { data: cData } = await supabase.from('project_categories').select('name, color').order('order_index', { ascending: true })
 
     if (!error && pData) {
       const projectsWithColor = pData.map(p => ({

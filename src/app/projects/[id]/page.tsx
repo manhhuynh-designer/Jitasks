@@ -8,6 +8,8 @@ import { Task } from '@/hooks/use-tasks'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { 
   Plus, 
   ArrowLeft, 
@@ -27,7 +29,10 @@ import {
   ChevronDown,
   Settings,
   Flag,
-  Link as LinkIcon
+  Link as LinkIcon,
+  Copy,
+  Search,
+  ArrowUpDown
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { vi } from 'date-fns/locale'
@@ -60,6 +65,11 @@ export default function ProjectDetail() {
   const [isEditTaskOpen, setIsEditTaskOpen] = useState(false)
   const [categories, setCategories] = useState<{id: string, name: string, color: string}[]>([])
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null)
+  const [taskGroups, setTaskGroups] = useState<{id: string, name: string, category_id: string}[]>([])
+  
+  const [isCloneOpen, setIsCloneOpen] = useState(false)
+  const [taskSearchQuery, setTaskSearchQuery] = useState('')
+  const [taskSortOrder, setTaskSortOrder] = useState<'asc' | 'desc'>('asc')
   
   const fetchData = useCallback(async (isSilent = false) => {
     if (!isSilent) setInitialLoading(true)
@@ -82,17 +92,23 @@ export default function ProjectDetail() {
       
       const { data: tData } = await supabase
         .from('tasks')
-        .select('*, assignees(full_name)')
+        .select('*, assignees(full_name), task_groups(id, name)')
         .eq('project_id', id)
         .order('deadline', { ascending: true })
 
+      const { data: groupData } = await supabase
+        .from('task_groups')
+        .select('*')
+        .order('order_index', { ascending: true })
+
       if (catData) setCategories(catData)
+      if (groupData) setTaskGroups(groupData)
       if (pData) {
         setProject(pData)
         // Improved category initialization
         let foundCatId = null
         if (catData) {
-          const matchingCat = catData.find((c: any) => c.name === pData.status)
+          const matchingCat = catData.find((c: any) => c.name.toLowerCase() === pData.status.toLowerCase())
           if (matchingCat) foundCatId = matchingCat.id
           else if (catData.length > 0) foundCatId = catData[0].id
         }
@@ -110,6 +126,65 @@ export default function ProjectDetail() {
       setIsRefreshing(false)
     }
   }, [id])
+
+  const addGroupTask = async () => {
+    const name = prompt('Nhập tên nhóm task mới:')
+    if (!name || !activeCategoryId) return
+    
+    const { error } = await supabase
+      .from('task_groups')
+      .insert({
+        name,
+        category_id: activeCategoryId,
+        created_by: (await supabase.auth.getUser()).data.user?.id
+      })
+    
+    if (error) {
+      console.error("Error creating task group:", error)
+      alert("Lỗi khi tạo nhóm task")
+      return
+    }
+    
+    fetchData(true)
+  }
+
+  const groupedTasks = useCallback(() => {
+    let filteredTasks = tasks.filter(t => t.category_id === activeCategoryId || (!t.category_id && activeCategoryId === categories[0]?.id))
+    
+    if (taskSearchQuery) {
+      filteredTasks = filteredTasks.filter(t => t.name.toLowerCase().includes(taskSearchQuery.toLowerCase()))
+    }
+    
+    filteredTasks.sort((a, b) => {
+      const dateA = new Date(a.deadline).getTime()
+      const dateB = new Date(b.deadline).getTime()
+      return taskSortOrder === 'desc' ? dateB - dateA : dateA - dateB
+    })
+
+    const currentGroups = taskGroups.filter(g => g.category_id === activeCategoryId)
+    const groups: {id: string, name: string, tasks: Task[]}[] = []
+
+    // Add explicit groups
+    currentGroups.forEach(group => {
+      groups.push({
+        id: group.id,
+        name: group.name,
+        tasks: filteredTasks.filter(t => t.task_group_id === group.id)
+      })
+    })
+
+    // Add ungrouped tasks
+    const ungrouped = filteredTasks.filter(t => !t.task_group_id || !currentGroups.find(g => g.id === t.task_group_id))
+    if (ungrouped.length > 0) {
+      groups.push({
+        id: 'ungrouped',
+        name: 'Chưa phân nhóm',
+        tasks: ungrouped
+      })
+    }
+
+    return groups
+  }, [tasks, activeCategoryId, categories, taskGroups, taskSearchQuery, taskSortOrder])
 
   useEffect(() => {
     fetchData()
@@ -207,14 +282,24 @@ export default function ProjectDetail() {
           <div className="flex flex-wrap items-center gap-x-10 gap-y-6">
             <div className="flex items-center gap-4">
               <h1 className="text-3xl lg:text-4xl font-black text-slate-900 tracking-tight leading-none">{project.name}</h1>
-              <Button 
-                variant="ghost" 
-                size="icon"
-                onClick={() => setIsEditOpen(true)}
-                className="h-10 w-10 rounded-xl bg-slate-100/50 hover:bg-primary/10 hover:text-primary transition-all active:scale-90"
-              >
-                <Pencil className="h-5 w-5" />
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button 
+                  variant="ghost" 
+                  size="icon"
+                  onClick={() => setIsEditOpen(true)}
+                  className="h-10 w-10 rounded-xl bg-slate-100/50 hover:bg-primary/10 hover:text-primary transition-all active:scale-90"
+                >
+                  <Pencil className="h-5 w-5" />
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="icon"
+                  onClick={() => setIsCloneOpen(true)}
+                  className="h-10 w-10 rounded-xl bg-slate-100/50 hover:bg-primary/10 hover:text-primary transition-all active:scale-90"
+                >
+                  <Copy className="h-5 w-5" />
+                </Button>
+              </div>
             </div>
 
             <div className="hidden lg:block h-10 w-[1px] bg-slate-200" />
@@ -278,10 +363,6 @@ export default function ProjectDetail() {
                 {project.status === cat.name && (
                    <span className="absolute inset-0 bg-white/10 animate-pulse" />
                 )}
-                {/* Visual separator except for the last item */}
-                {index < categories.length - 1 && (
-                  <div className="absolute right-0 top-1/2 -translate-y-1/2 h-4 w-[1px] bg-slate-200 group-hover:bg-transparent transition-colors" />
-                )}
               </button>
             )) : (
               <p className="px-4 py-4 text-[10px] text-slate-400 font-bold uppercase tracking-widest italic animate-pulse w-full text-center">
@@ -294,24 +375,52 @@ export default function ProjectDetail() {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
         <div className="lg:col-span-8 space-y-10">
-           <div className="flex items-center justify-between pb-6 border-b border-slate-100">
-              <h3 className="text-xl font-black text-slate-800 tracking-tight flex items-center gap-3">
-                <ListTodo className="h-6 w-6 text-primary" />
-                Danh sách Task
-              </h3>
-              <NewTaskDialog 
-                projectId={project.id} 
-                initialCategoryId={activeCategoryId || undefined}
-                onTaskCreated={() => fetchData(true)} 
-                trigger={
-                  <Button 
-                    size="icon"
-                    className="h-10 w-10 rounded-xl bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20 transition-all active:scale-90"
-                  >
-                    <Plus className="h-5 w-5" />
-                  </Button>
-                }
-              />
+           <div className="flex flex-col sm:flex-row items-center justify-between pb-6 border-b border-slate-100 gap-4">
+              <div className="flex items-center gap-3">
+                <h3 className="text-xl font-black text-slate-800 tracking-tight flex items-center gap-3">
+                  <ListTodo className="h-6 w-6 text-primary" />
+                  Danh sách Task
+                </h3>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <Input 
+                    placeholder="Tìm task..." 
+                    value={taskSearchQuery}
+                    onChange={(e) => setTaskSearchQuery(e.target.value)}
+                    className="pl-9 h-10 w-full sm:w-[200px] rounded-xl bg-slate-50 border-none font-medium"
+                  />
+                </div>
+                <Button
+                  variant="ghost"
+                  onClick={() => setTaskSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
+                  className="h-10 rounded-xl bg-slate-50 hover:bg-slate-100 font-bold text-slate-600 gap-2 px-3"
+                >
+                  <ArrowUpDown className="h-4 w-4" />
+                  {taskSortOrder === 'desc' ? 'Gần nhất' : 'Xa nhất'}
+                </Button>
+                <NewTaskDialog 
+                  projectId={project.id} 
+                  initialCategoryId={activeCategoryId || undefined}
+                  onTaskCreated={() => fetchData(true)} 
+                  trigger={
+                    <Button 
+                      size="icon"
+                      className="h-10 w-10 rounded-xl bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20 transition-all active:scale-90"
+                    >
+                      <Plus className="h-5 w-5" />
+                    </Button>
+                  }
+                />
+                <Button
+                  onClick={addGroupTask}
+                  className="h-10 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs gap-2 px-4 shadow-lg shadow-slate-200"
+                >
+                  <Plus className="h-4 w-4" />
+                  Thêm nhóm
+                </Button>
+              </div>
            </div>
 
            {isRefreshing ? (
@@ -326,169 +435,206 @@ export default function ProjectDetail() {
                  </div>
                ))}
              </div>
-           ) : (
-             <div key={activeCategoryId} className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-500 ease-out">
-                {tasks.filter(t => t.category_id === activeCategoryId || (!t.category_id && activeCategoryId === categories[0]?.id)).length > 0 ? (
-                  tasks.filter(t => t.category_id === activeCategoryId || (!t.category_id && activeCategoryId === categories[0]?.id)).map(task => (
-                    <Card key={task.id} className="border-none shadow-none hover:bg-slate-50/50 transition-all group rounded-2xl overflow-visible cursor-pointer" onClick={() => {
-                        setEditingTask(task)
-                        setIsEditTaskOpen(true)
-                      }}>
-                    <CardContent className="p-4 flex items-center gap-4 overflow-visible">
-                      {/* Status Dropdown */}
-                      <div onClick={(e) => e.stopPropagation()}>
-                        <DropdownMenu>
-                           <DropdownMenuTrigger
-                              render={
-                                 <button 
-                                    className={cn(
-                                      "h-8 w-8 rounded-xl flex items-center justify-center transition-all border-2 text-white shadow-sm",
-                                      STATUS_CONFIG[task.status as keyof typeof STATUS_CONFIG].color,
-                                      "border-transparent hover:scale-110 active:scale-95"
-                                    )}
-                                 >
-                                    {task.status === 'done' ? <CheckCircle2 className="h-4 w-4" /> : 
-                                     task.status === 'inprogress' ? <PlayCircle className="h-4 w-4" /> : 
-                                     task.status === 'pending' ? <Clock className="h-4 w-4" /> : 
-                                     <Circle className="h-4 w-4" />}
-                                 </button>
-                              }
-                           />
-                           <DropdownMenuContent className="rounded-2xl border-none glass-premium shadow-2xl p-2 w-44">
-                              {Object.entries(STATUS_CONFIG).map(([key, config]) => (
-                                 <DropdownMenuItem 
-                                    key={key} 
-                                    onClick={() => updateTaskStatus(task.id, key)}
-                                    className="rounded-xl px-4 py-2 cursor-pointer focus:bg-primary/10 focus:text-primary font-bold text-[10px] uppercase tracking-widest gap-2"
-                                 >
-                                    <div className={cn("h-2 w-2 rounded-full", config.color)} />
-                                    {config.label}
-                                 </DropdownMenuItem>
-                              ))}
-                           </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
+           ) : (() => {
+             let filteredTasks = tasks.filter(t => t.category_id === activeCategoryId || (!t.category_id && activeCategoryId === categories[0]?.id))
+             
+             if (taskSearchQuery) {
+               filteredTasks = filteredTasks.filter(t => t.name.toLowerCase().includes(taskSearchQuery.toLowerCase()))
+             }
+             
+             filteredTasks.sort((a, b) => {
+               const dateA = new Date(a.deadline).getTime()
+               const dateB = new Date(b.deadline).getTime()
+               return taskSortOrder === 'desc' ? dateB - dateA : dateA - dateB
+             })
 
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                           <h4 className={cn("text-sm font-bold tracking-tight", task.status === 'done' && "line-through text-slate-400")}>
-                             {task.name}
-                           </h4>
-                           {/* Status Badge */}
-                           <Badge className={cn("px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-widest border-none", STATUS_CONFIG[task.status as keyof typeof STATUS_CONFIG].ghost)}>
-                              {STATUS_CONFIG[task.status as keyof typeof STATUS_CONFIG].label}
-                           </Badge>
-                        </div>
-                        
-                        {task.description && (
-                          <p className="text-xs text-slate-400 font-medium line-clamp-1 mt-0.5">
-                            {task.description}
-                          </p>
-                        )}
-                        
-                        <div className="flex items-center gap-4 mt-1.5">
-                          {/* Date Range */}
-                          <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400">
-                            <Clock className="h-3 w-3" />
-                            {task.start_date ? format(new Date(task.start_date), 'dd/MM') : '??'} - {format(new Date(task.deadline), 'dd/MM/yyyy')}
-                          </div>
-                          
-                          {/* Assignee */}
-                          {task.assignee_id && (
-                             <div className="flex items-center gap-1 text-[10px] font-bold text-slate-500">
-                                <User className="h-3 w-3 text-slate-400" />
-                                <span>{(task as any).assignees?.full_name?.split(' ').pop()}</span>
-                             </div>
-                          )}
+              const groups = groupedTasks()
+              
+              if (groups.length === 0) {
+                return (
+                  <div className="py-20 text-center glass-premium rounded-[2.5rem] border-dashed border-2 border-slate-200 flex flex-col items-center gap-4">
+                    <div className="h-16 w-16 rounded-[2rem] bg-slate-50 flex items-center justify-center">
+                      <AlertCircle className="h-8 w-8 text-slate-200" />
+                    </div>
+                    <div>
+                      <p className="font-black text-slate-400 uppercase tracking-widest text-xs">No tasks found</p>
+                      <p className="text-slate-400 text-sm font-medium mt-1">Bắt đầu bằng cách thêm task mới.</p>
+                    </div>
+                  </div>
+                )
+              }
 
-                          {/* Priority Flag Interactive */}
-                          <div onClick={(e) => e.stopPropagation()}>
-                            <Popover>
-                               <PopoverTrigger
-                                  render={
-                                     <button 
-                                        title={PRIORITY_CONFIG[task.priority as keyof typeof PRIORITY_CONFIG].label}
-                                        className={cn("flex items-center gap-1 transition-transform active:scale-90", PRIORITY_CONFIG[task.priority as keyof typeof PRIORITY_CONFIG].color)}
-                                     >
-                                        <Flag className="h-3.5 w-3.5 fill-current" />
-                                        <span className="text-[10px] font-black uppercase tracking-widest opacity-0 group-hover:opacity-80 transition-opacity">
-                                          {task.priority}
-                                        </span>
-                                     </button>
-                                  }
-                               />
-                               <PopoverContent className="w-40 rounded-2xl border-none glass-premium shadow-2xl p-2" align="start">
-                                  <div className="space-y-1">
-                                     {Object.entries(PRIORITY_CONFIG).map(([key, config]) => (
-                                        <button 
-                                           key={key}
-                                           onClick={() => updateTaskPriority(task.id, key)}
-                                           className={cn(
-                                              "w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-white/50 transition-colors",
-                                              config.color
-                                           )}
-                                        >
-                                           <Flag className="h-4 w-4 fill-current" />
-                                           {config.label}
-                                        </button>
-                                     ))}
-                                  </div>
-                               </PopoverContent>
-                            </Popover>
-                          </div>
-
-                          {/* Links Indicator */}
-                          {task.links && task.links.length > 0 && (
-                             <div className="flex items-center gap-1 text-[10px] font-bold text-primary">
-                                <LinkIcon className="h-3 w-3" />
-                                <span>{task.links.length}</span>
-                             </div>
-                          )}
-                        </div>
+              return (
+                <div key={activeCategoryId} className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500 ease-out">
+                  {groups.map(group => (
+                    <div key={group.id} className="space-y-4">
+                      <div className="flex items-center gap-3 px-2">
+                        <div className={cn("h-1.5 w-1.5 rounded-full", group.id === 'ungrouped' ? 'bg-slate-300' : 'bg-primary')} />
+                        <h4 className="text-xs font-black uppercase tracking-widest text-slate-400">{group.name}</h4>
+                        <div className="flex-1 h-[1px] bg-slate-100" />
+                        <span className="text-[10px] font-bold text-slate-300 bg-slate-50 px-2 py-0.5 rounded-md">{group.tasks.length}</span>
                       </div>
                       
-                      <DropdownMenu>
-                        <DropdownMenuTrigger
-                          render={
-                            <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 rounded-xl">
-                              <MoreHorizontal className="h-4 w-4 text-slate-400" />
-                            </Button>
-                          }
-                        />
-                        <DropdownMenuContent align="end" className="rounded-2xl border-none glass-premium shadow-2xl p-2 w-40">
-                          <DropdownMenuItem 
-                            onClick={() => {
-                              setEditingTask(task)
-                              setIsEditTaskOpen(true)
-                            }}
-                            className="rounded-xl px-4 py-2 cursor-pointer focus:bg-primary/10 focus:text-primary font-bold text-xs gap-2"
-                          >
-                            <Pencil className="h-3.5 w-3.5" /> Sửa task
-                          </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            onClick={() => deleteTask(task.id)}
-                            className="rounded-xl px-4 py-2 cursor-pointer focus:bg-red-50 focus:text-red-500 font-bold text-xs gap-2 text-red-500"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" /> Xóa task
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </CardContent>
-                  </Card>
-                ))
-              ) : (
-                <div className="py-20 text-center glass-premium rounded-[2.5rem] border-dashed border-2 border-slate-200 flex flex-col items-center gap-4">
-                  <div className="h-16 w-16 rounded-[2rem] bg-slate-50 flex items-center justify-center">
-                    <AlertCircle className="h-8 w-8 text-slate-200" />
-                  </div>
-                  <div>
-                    <p className="font-black text-slate-400 uppercase tracking-widest text-xs">No tasks found</p>
-                    <p className="text-slate-400 text-sm font-medium mt-1">Bắt đầu bằng cách thêm task mới.</p>
-                  </div>
+                      <div className="space-y-3">
+                        {group.tasks.length > 0 ? (
+                          group.tasks.map(task => (
+                            <Card key={task.id} className="border-none shadow-none hover:bg-slate-50/50 transition-all group rounded-2xl overflow-visible cursor-pointer" onClick={() => {
+                                setEditingTask(task)
+                                setIsEditTaskOpen(true)
+                              }}>
+                            <CardContent className="p-4 flex items-center gap-4 overflow-visible">
+                              {/* Status Dropdown */}
+                              <div onClick={(e) => e.stopPropagation()}>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger
+                                      render={
+                                        <button 
+                                            className={cn(
+                                              "h-8 w-8 rounded-xl flex items-center justify-center transition-all border-2 text-white shadow-sm",
+                                              STATUS_CONFIG[task.status as keyof typeof STATUS_CONFIG].color,
+                                              "border-transparent hover:scale-110 active:scale-95"
+                                            )}
+                                        >
+                                            {task.status === 'done' ? <CheckCircle2 className="h-4 w-4" /> : 
+                                            task.status === 'inprogress' ? <PlayCircle className="h-4 w-4" /> : 
+                                            task.status === 'pending' ? <Clock className="h-4 w-4" /> : 
+                                            <Circle className="h-4 w-4" />}
+                                        </button>
+                                      }
+                                  />
+                                  <DropdownMenuContent className="rounded-2xl border-none glass-premium shadow-2xl p-2 w-44">
+                                      {Object.entries(STATUS_CONFIG).map(([key, config]) => (
+                                        <DropdownMenuItem 
+                                            key={key} 
+                                            onClick={() => updateTaskStatus(task.id, key)}
+                                            className="rounded-xl px-4 py-2 cursor-pointer focus:bg-primary/10 focus:text-primary font-bold text-[10px] uppercase tracking-widest gap-2"
+                                        >
+                                            <div className={cn("h-2 w-2 rounded-full", config.color)} />
+                                            {config.label}
+                                        </DropdownMenuItem>
+                                      ))}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
+
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <h4 className={cn("text-sm font-bold tracking-tight", task.status === 'done' && "line-through text-slate-400")}>
+                                    {task.name}
+                                  </h4>
+                                  {/* Status Badge */}
+                                  <Badge className={cn("px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-widest border-none", STATUS_CONFIG[task.status as keyof typeof STATUS_CONFIG].ghost)}>
+                                      {STATUS_CONFIG[task.status as keyof typeof STATUS_CONFIG].label}
+                                  </Badge>
+                                </div>
+                                
+                                {task.description && (
+                                  <p className="text-xs text-slate-400 font-medium line-clamp-1 mt-0.5">
+                                    {task.description}
+                                  </p>
+                                )}
+                                
+                                <div className="flex items-center gap-4 mt-1.5">
+                                  {/* Date Range */}
+                                  <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400">
+                                    <Clock className="h-3 w-3" />
+                                    {task.start_date ? format(new Date(task.start_date), 'dd/MM') : '??'} - {format(new Date(task.deadline), 'dd/MM/yyyy')}
+                                  </div>
+                                  
+                                  {/* Assignee */}
+                                  {task.assignee_id && (
+                                    <div className="flex items-center gap-1 text-[10px] font-bold text-slate-500">
+                                        <User className="h-3 w-3 text-slate-400" />
+                                        <span>{(task as any).assignees?.full_name}</span>
+                                    </div>
+                                  )}
+
+                                  {/* Priority Flag Interactive */}
+                                  <div onClick={(e) => e.stopPropagation()}>
+                                    <Popover>
+                                      <PopoverTrigger
+                                          render={
+                                            <button 
+                                                title={PRIORITY_CONFIG[task.priority as keyof typeof PRIORITY_CONFIG].label}
+                                                className={cn("flex items-center gap-1 transition-transform active:scale-90", PRIORITY_CONFIG[task.priority as keyof typeof PRIORITY_CONFIG].color)}
+                                            >
+                                                <Flag className="h-3.5 w-3.5 fill-current" />
+                                                <span className="text-[10px] font-black uppercase tracking-widest opacity-0 group-hover:opacity-80 transition-opacity">
+                                                  {task.priority}
+                                                </span>
+                                            </button>
+                                          }
+                                      />
+                                      <PopoverContent className="w-40 rounded-2xl border-none glass-premium shadow-2xl p-2" align="start">
+                                          <div className="space-y-1">
+                                            {Object.entries(PRIORITY_CONFIG).map(([key, config]) => (
+                                                <button 
+                                                  key={key}
+                                                  onClick={() => updateTaskPriority(task.id, key)}
+                                                  className={cn(
+                                                      "w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-white/50 transition-colors",
+                                                      config.color
+                                                  )}
+                                                >
+                                                  <Flag className="h-4 w-4 fill-current" />
+                                                  {config.label}
+                                                </button>
+                                            ))}
+                                          </div>
+                                      </PopoverContent>
+                                    </Popover>
+                                  </div>
+
+                                  {/* Links Indicator */}
+                                  {task.links && task.links.length > 0 && (
+                                    <div className="flex items-center gap-1 text-[10px] font-bold text-primary">
+                                        <LinkIcon className="h-3 w-3" />
+                                        <span>{task.links.length}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              
+                              <DropdownMenu>
+                                <DropdownMenuTrigger
+                                  render={
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 rounded-xl">
+                                      <MoreHorizontal className="h-4 w-4 text-slate-400" />
+                                    </Button>
+                                  }
+                                />
+                                <DropdownMenuContent align="end" className="rounded-2xl border-none glass-premium shadow-2xl p-2 w-40">
+                                  <DropdownMenuItem 
+                                    onClick={() => {
+                                      setEditingTask(task)
+                                      setIsEditTaskOpen(true)
+                                    }}
+                                    className="rounded-xl px-4 py-2 cursor-pointer focus:bg-primary/10 focus:text-primary font-bold text-xs gap-2"
+                                  >
+                                    <Pencil className="h-3.5 w-3.5" /> Sửa task
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem 
+                                    onClick={() => deleteTask(task.id)}
+                                    className="rounded-xl px-4 py-2 cursor-pointer focus:bg-red-50 focus:text-red-500 font-bold text-xs gap-2 text-red-500"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" /> Xóa task
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </CardContent>
+                          </Card>
+                          ))
+                        ) : (
+                          <div className="py-12 text-center glass-premium rounded-[2rem] border-dashed border-2 border-slate-100/50">
+                             <p className="text-[10px] font-black uppercase tracking-widest text-slate-300">Không có task trong nhóm này</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              )}
-           </div>
-           )}
+              )
+            })()}
         </div>
 
         <div className="lg:col-span-4 space-y-10">
@@ -517,6 +663,29 @@ export default function ProjectDetail() {
                      <span>{completedTasks} tasks done</span>
                      <span>{tasks.length} total</span>
                    </p>
+
+                   {categories.length > 0 && tasks.length > 0 && (
+                     <div className="mt-6 space-y-3 pt-6 border-t border-slate-100/50">
+                       <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Tasks by Stage</p>
+                       {categories.map(cat => {
+                         const catTasks = tasks.filter(t => t.category_id === cat.id || (!t.category_id && cat.id === categories[0]?.id))
+                         if (catTasks.length === 0) return null
+                         const catDone = catTasks.filter(t => t.status === 'done').length
+                         
+                         return (
+                           <div key={cat.id} className="flex items-center justify-between text-xs font-bold">
+                             <div className="flex items-center gap-2 text-slate-600">
+                               <div className={cn("h-2 w-2 rounded-full", cat.color)} />
+                               {cat.name}
+                             </div>
+                             <span className="text-slate-400">
+                               {catDone} / {catTasks.length}
+                             </span>
+                           </div>
+                         )
+                       })}
+                     </div>
+                   )}
                 </CardContent>
               </Card>
 
@@ -540,6 +709,14 @@ export default function ProjectDetail() {
         open={isEditOpen} 
         onOpenChange={setIsEditOpen} 
         onProjectUpdated={fetchData} 
+      />
+
+      <EditProjectDialog 
+        project={project} 
+        open={isCloneOpen} 
+        onOpenChange={setIsCloneOpen} 
+        onProjectUpdated={fetchData} 
+        isClone={true}
       />
 
       {editingTask && (
