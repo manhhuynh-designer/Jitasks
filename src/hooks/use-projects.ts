@@ -12,6 +12,7 @@ export type Project = {
   color?: string
   color_code: string | null
   description: string | null
+  cover_url?: string | null
   suppliers?: { id: string, name: string }
 }
 

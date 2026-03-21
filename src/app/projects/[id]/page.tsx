@@ -33,7 +33,8 @@ import {
   Copy,
   Search,
   ArrowUpDown,
-  Maximize2
+  Maximize2,
+  Image as ImageIcon
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { vi } from 'date-fns/locale'
@@ -55,6 +56,15 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Label } from '@/components/ui/label'
 
 import { EditTaskDialog } from '@/components/tasks/edit-task-dialog'
 
@@ -85,6 +95,38 @@ export default function ProjectDetail() {
   const [taskSortOrder, setTaskSortOrder] = useState<'asc' | 'desc'>('asc')
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null)
   
+  const [isUpdateCoverOpen, setIsUpdateCoverOpen] = useState(false)
+  const [coverUrl, setCoverUrl] = useState(project?.cover_url || '')
+  const [updatingCover, setUpdatingCover] = useState(false)
+
+  // Sync coverUrl when project changes
+  useEffect(() => {
+    if (project) {
+      setCoverUrl(project.cover_url || '')
+    }
+  }, [project?.cover_url])
+
+  const handleUpdateCover = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!project) return
+    setUpdatingCover(true)
+    try {
+      const { error } = await supabase
+        .from('projects')
+        .update({ cover_url: coverUrl || null })
+        .eq('id', project.id)
+      
+      if (error) throw error
+      setIsUpdateCoverOpen(false)
+      fetchData(true)
+    } catch (err: any) {
+      console.error("Error updating cover:", err)
+      alert(`Lỗi khi cập nhật ảnh bìa: ${err.message || 'Chưa rõ nguyên nhân. Hãy chắc chắn bạn đã chạy lệnh SQL.'}`)
+    } finally {
+      setUpdatingCover(false)
+    }
+  }
+
   const handleTaskClick = useCallback((taskId: string) => {
     setEditingTaskId(taskId)
     setIsEditTaskOpen(true)
@@ -145,7 +187,7 @@ export default function ProjectDetail() {
       if (!isSilent) setInitialLoading(false)
       setIsRefreshing(false)
     }
-  }, [id])
+  }, [id, activeCategoryId])
 
 
   const groups = useMemo(() => {
@@ -335,84 +377,114 @@ export default function ProjectDetail() {
 
   return (
     <div className="space-y-10 max-w-[1600px] mx-auto pb-20">
-      <Button variant="ghost" onClick={() => router.back()} className="group hover:bg-transparent -ml-2 text-slate-500 hover:text-slate-800 transition-all font-bold uppercase tracking-widest text-[10px]">
-        <ArrowLeft className="mr-2 h-4 w-4 transition-transform group-hover:-translate-x-1" /> Quay lại
-      </Button>
+      {/* HEADER & STAGE BAR AREA WITH COVER BACKGROUND */}
+      <div className="relative isolate px-8 pt-4 pb-1 group/cover transition-all duration-700 min-h-[300px] flex flex-col justify-end">
+        {/* REPOSITIONED CHANGE COVER BUTTON */}
+        <Button 
+          variant="ghost" 
+          size="icon"
+          onClick={() => setIsUpdateCoverOpen(true)}
+          className="absolute top-4 right-4 h-8 w-8 rounded-lg bg-white/50 backdrop-blur-md border border-white/50 hover:bg-white/80 transition-all z-30 shadow-sm active:scale-90"
+          title="Đổi ảnh bìa"
+        >
+          <ImageIcon className="h-4 w-4 text-slate-700" />
+        </Button>
 
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-        <div className="space-y-6">
-          <div className="flex flex-wrap items-center gap-x-10 gap-y-6">
-            <div className="flex items-center gap-4">
-              <h1 className="text-3xl lg:text-4xl font-black text-slate-900 tracking-tight leading-none">{project.name}</h1>
-              <div className="flex items-center gap-2">
-                <Button 
-                  variant="ghost" 
-                  size="icon"
-                  onClick={() => setIsEditOpen(true)}
-                  className="h-10 w-10 rounded-xl bg-slate-100/50 hover:bg-primary/10 hover:text-primary transition-all active:scale-90"
-                >
-                  <Pencil className="h-5 w-5" />
-                </Button>
-                <Button 
-                  variant="ghost" 
-                  size="icon"
-                  onClick={() => setIsCloneOpen(true)}
-                  className="h-10 w-10 rounded-xl bg-slate-100/50 hover:bg-primary/10 hover:text-primary transition-all active:scale-90"
-                >
-                  <Copy className="h-5 w-5" />
-                </Button>
-              </div>
-            </div>
-
-            <div className="hidden lg:block h-10 w-[1px] bg-slate-200" />
-
-            <div className="flex items-center gap-8">
-              <div className="flex items-center gap-3 group cursor-pointer">
-                <div className="h-10 w-10 rounded-xl bg-slate-100 flex items-center justify-center group-hover:bg-primary/10 transition-colors">
-                  <Building2 className="h-5 w-5 text-slate-400 group-hover:text-primary" />
-                </div>
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 leading-none mb-1">Supplier</p>
-                  <p className="font-bold text-slate-700">{project.suppliers?.name || 'Chưa định danh'}</p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl bg-slate-100 flex items-center justify-center">
-                  <CalendarIcon className="h-5 w-5 text-slate-400" />
-                </div>
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 leading-none mb-1">Created At</p>
-                  <p className="font-bold text-slate-700">{format(new Date(project.created_at), 'dd MMM yyyy')}</p>
-                </div>
-              </div>
-            </div>
+        {project.cover_url && (
+          <div className="absolute -top-[8.5rem] w-screen left-1/2 -translate-x-1/2 bottom-0 z-0 overflow-hidden pointer-events-none translate-z-0">
+            <img 
+              src={project.cover_url} 
+              alt="Project Cover" 
+              className="w-full h-full object-cover opacity-100 contrast-[0.9] saturate-[1.1]" 
+            />
+            {/* Multi-layered gradients for depth and blending - using slate-50 to match bg-slate-50 */}
+            <div className="absolute inset-0 bg-gradient-to-b from-slate-50/40 via-slate-50/10 to-slate-50" />
+            <div className="absolute inset-0 bg-gradient-to-r from-slate-50/70 via-transparent to-slate-50/70" />
+            <div className="absolute inset-x-0 bottom-0 h-56 bg-gradient-to-t from-slate-50 via-slate-50/80 to-transparent" />
           </div>
+        )}
 
-          <div className="flex items-center w-full max-w-4xl bg-slate-100/50 backdrop-blur-md rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
-            {categories.length > 0 ? categories.map((cat, index) => (
-              <button
-                key={cat.id}
-                onClick={() => setActiveCategoryId(cat.id)}
-                className={cn(
-                  "flex-1 py-4 text-[10px] font-black uppercase tracking-widest transition-all duration-300 relative group border-none outline-none rounded-none",
-                  activeCategoryId === cat.id 
-                    ? cn("text-white z-10", cat.color || 'bg-slate-800') 
-                    : "bg-slate-50 text-slate-400 hover:bg-white hover:text-slate-600"
-                )}
-                style={activeCategoryId !== cat.id ? { 
-                  backgroundColor: `${cat.color === 'bg-blue-500' ? '#eff6ff' : cat.color === 'bg-emerald-500' ? '#ecfdf5' : '#f8fafc'}`,
-                  color: `${cat.color === 'bg-blue-500' ? '#3b82f6' : cat.color === 'bg-emerald-500' ? '#10b981' : '#94a3b8'}`,
-                  opacity: 0.6
-                } : {}}
-              >
-                {cat.name}
-              </button>
-            )) : (
-              <p className="px-4 py-4 text-[10px] text-slate-400 font-bold uppercase tracking-widest italic animate-pulse w-full text-center">
-                ⚠️ Cần chạy SQL (setup_dynamic_categories) để hiển thị Giai đoạn
-              </p>
-            )}
+        <div className="relative z-10 space-y-10">
+          <Button variant="ghost" onClick={() => router.back()} className="group hover:bg-transparent -ml-2 text-slate-500 hover:text-slate-800 transition-all font-bold uppercase tracking-widest text-[10px]">
+            <ArrowLeft className="mr-2 h-4 w-4 transition-transform group-hover:-translate-x-1" /> Quay lại
+          </Button>
+
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+            <div className="space-y-6 flex-1">
+              <div className="flex flex-wrap items-center gap-x-10 gap-y-6">
+                <div className="flex items-center gap-4">
+                  <h1 className="text-3xl lg:text-4xl font-black text-slate-900 tracking-tight leading-none drop-shadow-sm">{project.name}</h1>
+                  <div className="flex items-center gap-2">
+                    <Button 
+                      variant="ghost" 
+                      size="icon"
+                      onClick={() => setIsEditOpen(true)}
+                      className="h-10 w-10 rounded-xl bg-white/60 backdrop-blur-md border border-white/50 hover:bg-primary/10 hover:text-primary transition-all active:scale-90"
+                    >
+                      <Pencil className="h-5 w-5" />
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="icon"
+                      onClick={() => setIsCloneOpen(true)}
+                      className="h-10 w-10 rounded-xl bg-white/60 backdrop-blur-md border border-white/50 hover:bg-primary/10 hover:text-primary transition-all active:scale-90"
+                    >
+                      <Copy className="h-5 w-5" />
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="hidden lg:block h-10 w-[1px] bg-slate-200/50" />
+
+                <div className="flex items-center gap-8">
+                  <div className="flex items-center gap-3 group cursor-pointer text-slate-700">
+                    <div className="h-10 w-10 rounded-xl bg-white/60 backdrop-blur-md border border-white/50 flex items-center justify-center group-hover:bg-primary/10 transition-colors">
+                      <Building2 className="h-5 w-5 text-slate-400 group-hover:text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 leading-none mb-1">Supplier</p>
+                      <p className="font-bold text-slate-800">{project.suppliers?.name || 'Chưa định danh'}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 text-slate-700">
+                    <div className="h-10 w-10 rounded-xl bg-white/60 backdrop-blur-md border border-white/50 flex items-center justify-center">
+                      <CalendarIcon className="h-5 w-5 text-slate-400" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 leading-none mb-1">Created At</p>
+                      <p className="font-bold text-slate-800">{format(new Date(project.created_at), 'dd MMM yyyy')}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="w-full max-w-4xl">
+                <div className="relative flex items-center w-full bg-white/40 backdrop-blur-xl rounded-t-2xl border-x border-t border-white/60 overflow-hidden shadow-2xl shadow-slate-200/30">
+                  {categories.length > 0 ? categories.map((cat, index) => (
+                    <button
+                      key={cat.id}
+                      onClick={() => setActiveCategoryId(cat.id)}
+                      className={cn(
+                        "flex-1 py-4 text-[10px] font-black uppercase tracking-widest transition-all duration-300 relative group border-none outline-none rounded-none",
+                        activeCategoryId === cat.id 
+                          ? cn("text-white z-10", cat.color || 'bg-slate-800') 
+                          : "text-slate-500 hover:text-slate-800 hover:bg-white/40 font-bold"
+                      )}
+                    >
+                      <span className="relative z-10">{index + 1}. {cat.name}</span>
+                      {activeCategoryId === cat.id && (
+                        <div className="absolute inset-0 bg-inherit animate-in fade-in zoom-in-95 duration-300" />
+                      )}
+                    </button>
+                  )) : (
+                    <p className="px-4 py-4 text-[10px] text-slate-400 font-bold uppercase tracking-widest italic animate-pulse w-full text-center">
+                      ⚠️ Cần chạy SQL (setup_dynamic_categories) để hiển thị Giai đoạn
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -613,6 +685,49 @@ export default function ProjectDetail() {
         onProjectUpdated={fetchData} 
         isClone={true}
       />
+
+      {/* Update Cover Dialog */}
+      <Dialog open={isUpdateCoverOpen} onOpenChange={setIsUpdateCoverOpen}>
+        <DialogContent className="sm:max-w-[450px] rounded-[2.5rem] border-none glass-premium p-8 shadow-2xl">
+          <DialogHeader className="space-y-3">
+            <div className="h-12 w-12 rounded-2xl bg-slate-900/10 flex items-center justify-center mb-2">
+              <ImageIcon className="h-6 w-6 text-slate-900" />
+            </div>
+            <DialogTitle className="text-2xl font-black text-slate-900 tracking-tight">Cập nhật ảnh bìa</DialogTitle>
+            <DialogDescription className="text-slate-500 font-medium">
+              Nhập liên kết hình ảnh để thay đổi nền cho thanh giai đoạn.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleUpdateCover} className="space-y-6 pt-6">
+            <div className="space-y-2">
+              <Label htmlFor="cover-url" className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">Link ảnh bìa</Label>
+              <div className="relative group">
+                <LinkIcon className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-300 group-focus-within:text-primary transition-colors" />
+                <Input 
+                  id="cover-url" 
+                  placeholder="https://example.com/image.jpg" 
+                  value={coverUrl}
+                  onChange={(e) => setCoverUrl(e.target.value)}
+                  className="rounded-2xl h-14 bg-slate-50 border-none focus-visible:ring-primary/20 font-medium pl-11 shadow-inner"
+                />
+              </div>
+            </div>
+
+            {coverUrl && (
+              <div className="rounded-2xl overflow-hidden aspect-[21/9] bg-slate-100 border-2 border-slate-100">
+                <img src={coverUrl} alt="Preview" className="w-full h-full object-cover" onError={(e) => (e.currentTarget.src = 'https://placehold.co/600x200?text=Invalid+Image+URL')} />
+              </div>
+            )}
+
+            <DialogFooter>
+              <Button type="submit" disabled={updatingCover} className="w-full rounded-2xl h-14 font-black text-lg bg-slate-900 text-white hover:bg-slate-800 transition-all shadow-lg shadow-slate-200">
+                {updatingCover ? 'Đang cập nhật...' : 'Cập nhật ngay'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {editingTask && (
         <EditTaskDialog

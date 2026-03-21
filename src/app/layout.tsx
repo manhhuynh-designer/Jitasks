@@ -44,9 +44,9 @@ export default function RootLayout({
           <SidebarProvider>
             <div className="flex h-screen w-full">
               <AppSidebar />
-              <main className="flex-1 overflow-auto bg-slate-50 scroll-smooth snap-y snap-proximity">
+              <main className="flex-1 overflow-y-auto overflow-x-hidden bg-slate-50 scroll-smooth snap-y snap-proximity">
                 <div className="p-4 md:p-8">
-                  <header className="mb-8 flex items-center justify-between">
+                  <header className="mb-8 flex items-center justify-between relative z-50">
                     <div className="flex items-center gap-4">
                       <SidebarTrigger />
                       <h1 className="text-2xl font-semibold text-slate-900">
