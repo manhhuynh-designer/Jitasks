@@ -57,6 +57,13 @@ const STATUS_COLOR_MAP: Record<string, string> = {
   done: 'bg-emerald-500 text-white border-transparent opacity-50',
 }
 
+const formatTaskTime = (minutes: any) => {
+  if (typeof minutes !== 'number') return minutes;
+  const h = Math.floor(minutes / 60).toString().padStart(2, '0');
+  const m = (minutes % 60).toString().padStart(2, '0');
+  return `${h}:${m}`;
+}
+
 
 interface DayCellProps {
   day: Date
@@ -128,10 +135,10 @@ const DayCell = ({
 
                   <div className="flex flex-col flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2 overflow-hidden mb-1">
-                      {view === 'week' && task.deadline && (
+                      {view === 'week' && task.task_time != null && (
                         <div className="flex items-center gap-1 text-[8px] font-bold shrink-0">
                           <Clock className="h-2.5 w-2.5" />
-                          {format(new Date(task.deadline), 'HH:mm')}
+                          {formatTaskTime(task.task_time)}
                         </div>
                       )}
                     </div>
@@ -222,6 +229,9 @@ export function CalendarView({ tasks, className, onRefreshTasks }: CalendarViewP
       const isSameDate = isSameDay(taskDate, day)
       const matchesStage = t.project_categories?.name === t.projects?.status
       return isSameDate && matchesStage
+    }).sort((a: any, b: any) => {
+      if ((a.order_index || 0) !== (b.order_index || 0)) return (a.order_index || 0) - (b.order_index || 0);
+      return (a.task_time || 0) - (b.task_time || 0);
     })
   }
 

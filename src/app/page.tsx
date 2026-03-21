@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
+import { format } from 'date-fns'
 import { useProjects } from '@/hooks/use-projects'
 import { useTasks } from '@/hooks/use-tasks'
 import { supabase } from '@/lib/supabase'
@@ -9,7 +10,7 @@ import { TaskHotlist } from '@/components/tasks/task-hotlist'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
-import { Plus, Search, Calendar as CalendarIcon, LayoutGrid, Filter, ChevronLeft, ChevronRight, X, Briefcase, Tag, Clock, Flag, ArrowDownUp } from 'lucide-react'
+import { Plus, Search, Calendar as CalendarIcon, LayoutGrid, Filter, ChevronLeft, ChevronRight, ChevronDownIcon, X, Briefcase, Tag, Clock, Flag, ArrowDownUp } from 'lucide-react'
 import {
   Popover,
   PopoverContent,
@@ -19,10 +20,25 @@ import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { CalendarView } from '@/components/tasks/calendar-view'
+import { Calendar } from '@/components/ui/calendar'
 import { NewProjectDialog } from '@/components/projects/new-project-dialog'
 import { EditProjectDialog } from '@/components/projects/edit-project-dialog'
 import { cn } from '@/lib/utils'
 import { Project } from '@/hooks/use-projects'
+
+const PROJECT_STATUSES = [
+  { value: 'Sourcing', label: 'Sourcing', color: 'bg-blue-500 text-white' },
+  { value: 'Active', label: 'Active', color: 'bg-emerald-500 text-white' },
+  { value: 'On Hold', label: 'On Hold', color: 'bg-amber-500 text-white' },
+  { value: 'Archive', label: 'Archive', color: 'bg-slate-500 text-white' }
+]
+
+const TASK_STATUSES = [
+  { value: 'todo', label: 'To Do', color: 'bg-slate-500 text-white' },
+  { value: 'inprogress', label: 'In Progress', color: 'bg-sky-400 text-white shadow-sm shadow-sky-400/20' },
+  { value: 'pending', label: 'Pending', color: 'bg-orange-400 text-white shadow-sm shadow-orange-400/20' },
+  { value: 'done', label: 'Done', color: 'bg-emerald-500 text-white opacity-80' }
+]
 
 export default function Dashboard() {
   const { projects, loading: projectsLoading, refresh: refreshProjects } = useProjects()
@@ -39,10 +55,13 @@ export default function Dashboard() {
     fetchCats()
   }, [])
 
-  const [statusFilter, setStatusFilter] = useState('all')
-  const [priorityFilter, setPriorityFilter] = useState('all')
-  const [timeFilter, setTimeFilter] = useState('all')
-  const [supplierFilter, setSupplierFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState<string[]>([])
+  const [taskStatusFilter, setTaskStatusFilter] = useState<string[]>([])
+  const [priorityFilter, setPriorityFilter] = useState<string[]>([])
+  const [supplierFilter, setSupplierFilter] = useState<string[]>([])
+  const [dateRange, setDateRange] = useState<{ from: Date | undefined, to: Date | undefined }>({ from: undefined, to: undefined })
+  const [showSupplierDropdown, setShowSupplierDropdown] = useState(false)
+  const [showDatePicker, setShowDatePicker] = useState(false)
   
   const [currentPage, setCurrentPage] = useState(1)
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc')
@@ -100,53 +119,121 @@ export default function Dashboard() {
     refreshTasks()
   }
 
-  const filteredProjects = useMemo(() => {
-    let result = projects.filter(p => {
-      const sq = searchQuery.toLowerCase()
-      if (!sq) return true
-      
-      if (p.name.toLowerCase().includes(sq)) return true
-      if (p.suppliers?.name?.toLowerCase().includes(sq)) return true
-      if (p.status?.toLowerCase().includes(sq)) return true
-      
-      const pTasks = allTasks.filter(t => t.project_id === p.id)
-      return pTasks.some(t => t.name.toLowerCase().includes(sq))
-    })
+  const filteredTasks = useMemo(() => {
+    let result = allTasks
 
-    if (statusFilter !== 'all') {
-      result = result.filter(p => p.status?.toLowerCase() === statusFilter.toLowerCase())
+    // Search query
+    const sq = searchQuery.toLowerCase()
+    if (sq) {
+      result = result.filter(t => 
+        t.name.toLowerCase().includes(sq) || 
+        t.projects?.name?.toLowerCase().includes(sq) ||
+        t.assignees?.full_name?.toLowerCase().includes(sq)
+      )
     }
 
-    if (priorityFilter !== 'all') {
-      result = result.filter(p => {
-        const pTasks = allTasks.filter(t => t.project_id === p.id && t.status !== 'done')
-        return pTasks.some(t => t.priority === priorityFilter)
+    // Priority filter (Multi)
+    if (priorityFilter.length > 0) {
+      result = result.filter(t => priorityFilter.includes(t.priority))
+    }
+
+    // Task status filter (Multi)
+    if (taskStatusFilter.length > 0) {
+      result = result.filter(t => taskStatusFilter.includes(t.status))
+    }
+
+    // Supplier filter (Multi)
+    if (supplierFilter.length > 0) {
+      result = result.filter(t => {
+        const id = t.assignee_id || 'none'
+        return supplierFilter.includes(id)
       })
     }
 
-    if (timeFilter !== 'all') {
-      const today = new Date()
+    // Date range filter
+    if (dateRange.from) {
+      const from = new Date(dateRange.from)
+      from.setHours(0,0,0,0)
+      
+      result = result.filter(t => {
+        if (!t.deadline) return false
+        const d = new Date(t.deadline)
+        d.setHours(0,0,0,0)
+        
+        if (dateRange.to) {
+          const to = new Date(dateRange.to)
+          to.setHours(23,59,59,999)
+          return d >= from && d <= to
+        }
+        return d >= from
+      })
+    }
+
+    return result
+  }, [allTasks, searchQuery, priorityFilter, supplierFilter, dateRange])
+
+  const filteredProjects = useMemo(() => {
+    let result = projects
+
+    // Search query
+    const sq = searchQuery.toLowerCase()
+    if (sq) {
+      result = result.filter(p => {
+        if (p.name.toLowerCase().includes(sq)) return true
+        if (p.suppliers?.name?.toLowerCase().includes(sq)) return true
+        if (p.status?.toLowerCase().includes(sq)) return true
+        
+        const pTasks = allTasks.filter(t => t.project_id === p.id)
+        return pTasks.some(t => t.name.toLowerCase().includes(sq))
+      })
+    }
+
+    // Status filter (Multi)
+    if (statusFilter.length > 0) {
+      result = result.filter(p => statusFilter.includes(p.status || 'Sourcing'))
+    }
+
+    // Priority filter (Multi) - If a project has ANY task with selected priority
+    if (priorityFilter.length > 0) {
+      result = result.filter(p => {
+        const pTasks = allTasks.filter(t => t.project_id === p.id && t.status !== 'done')
+        return pTasks.some(t => priorityFilter.includes(t.priority))
+      })
+    }
+
+    // Task status filter (Multi) - If a project has ANY task with selected stage
+    if (taskStatusFilter.length > 0) {
+      result = result.filter(p => {
+        const pTasks = allTasks.filter(t => t.project_id === p.id)
+        return pTasks.some(t => taskStatusFilter.includes(t.status))
+      })
+    }
+
+    // Supplier filter (Multi)
+    if (supplierFilter.length > 0) {
+      result = result.filter(p => {
+        const id = p.suppliers?.id || p.supplier_id || 'none'
+        return supplierFilter.includes(id)
+      })
+    }
+
+    // Date range filter for projects
+    if (dateRange.from) {
+      const from = new Date(dateRange.from)
+      from.setHours(0,0,0,0)
       result = result.filter(p => {
         const pTasks = allTasks.filter(t => t.project_id === p.id && t.status !== 'done')
         return pTasks.some(t => {
           if (!t.deadline) return false
           const d = new Date(t.deadline)
-          if (timeFilter === 'today') return d.toDateString() === today.toDateString()
-          if (timeFilter === 'this_week') {
-            const nextWeek = new Date()
-            nextWeek.setDate(today.getDate() + 7)
-            return d >= today && d <= nextWeek
+          d.setHours(0,0,0,0)
+          if (dateRange.to) {
+            const to = new Date(dateRange.to)
+            to.setHours(23,59,59,999)
+            return d >= from && d <= to
           }
-          if (timeFilter === 'overdue') return d < today
-          return true
+          return d >= from
         })
-      })
-    }
-
-    if (supplierFilter !== 'all') {
-      result = result.filter(p => {
-        const id = p.suppliers?.id || p.supplier_id || 'none'
-        return id === supplierFilter
       })
     }
 
@@ -157,7 +244,7 @@ export default function Dashboard() {
     })
 
     return result
-  }, [projects, allTasks, searchQuery, statusFilter, priorityFilter, timeFilter, supplierFilter, sortOrder])
+  }, [projects, allTasks, searchQuery, statusFilter, priorityFilter, supplierFilter, dateRange, sortOrder])
 
 
   const uniqueSuppliers = useMemo(() => {
@@ -171,15 +258,18 @@ export default function Dashboard() {
   const totalPages = Math.ceil(filteredProjects.length / itemsPerPage)
   const paginatedProjects = filteredProjects.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
 
-  const activeFiltersCount = (statusFilter !== 'all' ? 1 : 0) + (priorityFilter !== 'all' ? 1 : 0) + (timeFilter !== 'all' ? 1 : 0) + (supplierFilter !== 'all' ? 1 : 0)
+  const activeFiltersCount = (statusFilter.length > 0 ? 1 : 0) + (priorityFilter.length > 0 ? 1 : 0) + (dateRange.from ? 1 : 0) + (supplierFilter.length > 0 ? 1 : 0)
 
   const clearFilters = () => {
-    setStatusFilter('all')
-    setPriorityFilter('all')
-    setTimeFilter('all')
-    setSupplierFilter('all')
+    setStatusFilter([])
+    setTaskStatusFilter([])
+    setPriorityFilter([])
+    setDateRange({ from: undefined, to: undefined })
+    setSupplierFilter([])
     setSearchQuery('')
     setCurrentPage(1)
+    setShowSupplierDropdown(false)
+    setShowDatePicker(false)
   }
 
   const tasksToday = allTasks.filter(t => {
@@ -206,6 +296,44 @@ export default function Dashboard() {
     setIsCloneOpen(true)
   }
 
+  const toggleStatus = (status: string) => {
+    setStatusFilter(prev => 
+      prev.includes(status) ? prev.filter(s => s !== status) : [...prev, status]
+    )
+    setCurrentPage(1)
+  }
+
+  const toggleTaskStatus = (status: string) => {
+    setTaskStatusFilter(prev => 
+      prev.includes(status) ? prev.filter(s => s !== status) : [...prev, status]
+    )
+    setCurrentPage(1)
+  }
+
+  const togglePriority = (priority: string) => {
+    setPriorityFilter(prev => 
+      prev.includes(priority) ? prev.filter(p => p !== priority) : [...prev, priority]
+    )
+    setCurrentPage(1)
+  }
+
+  const toggleSupplier = (supplierId: string) => {
+    setSupplierFilter(prev => 
+      prev.includes(supplierId) ? prev.filter(s => s !== supplierId) : [...prev, supplierId]
+    )
+    setCurrentPage(1)
+  }
+
+  const getPriorityInfo = (p: string) => {
+    const opts: Record<string, { label: string, color: string }> = {
+      low: { label: 'Thấp', color: 'text-slate-400' },
+      medium: { label: 'Vừa', color: 'text-amber-500' },
+      high: { label: 'Cao', color: 'text-fuchsia-500' },
+      critical: { label: 'Gấp', color: 'text-red-600' }
+    }
+    return opts[p] || opts.low
+  }
+
   return (
     <div className="space-y-10 pb-20 max-w-[1600px] mx-auto scroll-smooth">
       {/* Top Header Section */}
@@ -220,7 +348,7 @@ export default function Dashboard() {
       </section>
 
       {/* NEW Cleaner Multi-Criteria Filter Bar */}
-      <section className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 bg-white/40 p-1.5 rounded-3xl glass-premium shadow-md border border-white/60">
+      <section className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 bg-white/40 p-1.5 rounded-3xl glass-premium border border-white/60">
         <div className="relative group flex-1">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-primary transition-all duration-300" />
           <Input 
@@ -253,7 +381,7 @@ export default function Dashboard() {
             
             <div className="flex items-center gap-3">
               {/* Grouped Sort & Filter - Icon Only */}
-              <div className="flex p-1 bg-white/40 glass-premium rounded-2xl border border-white/60 shadow-sm h-11 items-center">
+              <div className="flex p-1 bg-white/40 glass-premium rounded-2xl border border-white/60 h-11 items-center">
                 <Button 
                   variant="ghost" 
                   onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
@@ -280,89 +408,202 @@ export default function Dashboard() {
                       </Button>
                     }
                   />
-                  <PopoverContent className="w-80 rounded-3xl border-none glass-premium shadow-2xl p-6 mr-4" align="end">
-                    <div className="space-y-6">
-                      <div className="flex items-center justify-between mb-2">
-                        <h4 className="text-sm font-black text-slate-800 uppercase tracking-widest">Cấu hình bộ lọc</h4>
-                        <button 
+                  <PopoverContent className="w-80 p-0 rounded-3xl border border-white/40 bg-[#F8FAFC]/90" align="end">
+                    <div className="p-6 space-y-6">
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                        <Label className="text-sm font-black text-slate-800 uppercase tracking-wider">Cấu hình bộ lọc</Label>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
                           onClick={clearFilters}
-                          className="text-[10px] font-black text-primary hover:underline uppercase tracking-widest"
+                          className="h-7 text-[9px] font-black uppercase tracking-widest text-rose-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg px-2"
                         >
                           Xoá tất cả
-                        </button>
+                        </Button>
                       </div>
 
-                      <div className="space-y-4">
-                        <div className="space-y-1.5">
-                          <Label className="text-xs font-black text-slate-400 uppercase tracking-widest px-1 ml-1">Trạng thái</Label>
-                          <Select value={statusFilter} onValueChange={(v) => { if (v) { setStatusFilter(v); setCurrentPage(1); } }}>
-                            <SelectTrigger className="h-11 border-none bg-white/60 hover:bg-white text-xs font-bold w-full rounded-xl shadow-sm">
-                              <div className="flex items-center gap-2">
-                                <Tag className="h-3.5 w-3.5 text-slate-400" />
-                                <SelectValue placeholder="Trạng thái" />
-                              </div>
-                            </SelectTrigger>
-                            <SelectContent className="rounded-xl border border-slate-100 bg-white shadow-2xl p-1.5">
-                              <SelectItem value="all" className="font-bold rounded-lg py-2.5">Tất cả trạng thái</SelectItem>
-                              {categories.map(cat => (
-                                <SelectItem key={cat.id} value={cat.name} className="font-bold text-xs capitalize rounded-lg py-2.5">{cat.name}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                      <div className="space-y-6 overflow-y-auto max-h-[60vh] pr-1 custom-scrollbar">
+                         {/* Status (Multi-select Badges) */}
+                        <div className="space-y-3">
+                          <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1 ml-1">Trạng thái Project</Label>
+                          <div className="flex flex-wrap gap-1.5">
+                            {PROJECT_STATUSES.map(status => {
+                              const isActive = statusFilter.length === 0 || statusFilter.includes(status.value)
+                              return (
+                                <button
+                                  key={status.value}
+                                  onClick={() => toggleStatus(status.value)}
+                                  className={cn(
+                                    "px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all border-transparent",
+                                    isActive ? `${status.color} shadow-sm scale-100` : "bg-slate-100 text-slate-400 opacity-50 scale-95 hover:opacity-80"
+                                  )}
+                                >
+                                  {status.label}
+                                </button>
+                              )
+                            })}
+                          </div>
                         </div>
 
-                        <div className="space-y-1.5">
-                          <Label className="text-xs font-black text-slate-400 uppercase tracking-widest px-1 ml-1">Nhà cung cấp</Label>
-                          <Select value={supplierFilter} onValueChange={(v) => { if (v) { setSupplierFilter(v); setCurrentPage(1); } }}>
-                            <SelectTrigger className="h-11 border-none bg-white/60 hover:bg-white text-xs font-bold w-full rounded-xl shadow-sm">
-                              <div className="flex items-center gap-2">
-                                <Briefcase className="h-3.5 w-3.5 text-slate-400" />
-                                <SelectValue placeholder="Nhà cung cấp" />
-                              </div>
-                            </SelectTrigger>
-                            <SelectContent className="rounded-xl border border-slate-100 bg-white shadow-2xl p-1.5">
-                              <SelectItem value="all" className="font-bold rounded-lg py-2.5">Bất kỳ nhà cung cấp</SelectItem>
-                              {uniqueSuppliers.map(s => (
-                                <SelectItem key={s.id} value={s.id} className="font-bold text-xs rounded-lg py-2.5">{s.name}</SelectItem>
-                              ))}
-                              <SelectItem value="none" className="font-bold text-slate-400 rounded-lg py-2.5">Chưa định danh</SelectItem>
-                            </SelectContent>
-                          </Select>
+                        {/* Task Status (Multi-select Badges) */}
+                        <div className="space-y-3">
+                          <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1 ml-1">Trạng thái Task</Label>
+                          <div className="flex flex-wrap gap-1.5">
+                            {TASK_STATUSES.map(status => {
+                              const isActive = taskStatusFilter.length === 0 || taskStatusFilter.includes(status.value)
+                              return (
+                                <button
+                                  key={status.value}
+                                  onClick={() => toggleTaskStatus(status.value)}
+                                  className={cn(
+                                    "px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all border-transparent",
+                                    isActive ? `${status.color} scale-100` : "bg-slate-100 text-slate-400 opacity-50 scale-95 hover:opacity-80"
+                                  )}
+                                >
+                                  {status.label}
+                                </button>
+                              )
+                            })}
+                          </div>
                         </div>
 
-                        <div className="space-y-1.5">
-                          <Label className="text-xs font-black text-slate-400 uppercase tracking-widest px-1 ml-1">Độ ưu tiên</Label>
-                          <Select value={priorityFilter} onValueChange={(v) => { if (v) { setPriorityFilter(v); setCurrentPage(1); } }}>
-                            <SelectTrigger className="h-11 border-none bg-white/60 hover:bg-white text-xs font-bold w-full rounded-xl shadow-sm">
-                              <div className="flex items-center gap-2">
-                                <Flag className="h-3.5 w-3.5 text-slate-400 fill-current" />
-                                <SelectValue placeholder="Ưu tiên công việc" />
-                              </div>
-                            </SelectTrigger>
-                            <SelectContent className="rounded-xl border border-slate-100 bg-white shadow-2xl p-1.5">
-                              <SelectItem value="all" className="font-bold rounded-lg py-2.5">Tất cả mức độ</SelectItem>
-                              <SelectItem value="critical" className="font-bold text-xs text-rose-500 rounded-lg py-2.5">Task Khẩn cấp (Critical)</SelectItem>
-                              <SelectItem value="high" className="font-bold text-xs text-amber-500 rounded-lg py-2.5">Task Quan trọng (High)</SelectItem>
-                            </SelectContent>
-                          </Select>
+                        {/* Priority (Flag Buttons) */}
+                        <div className="space-y-3">
+                          <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1 ml-1">Độ ưu tiên</Label>
+                          <div className="flex items-center justify-between gap-1 px-1">
+                            {['low', 'medium', 'high', 'critical'].map((p) => {
+                              const info = getPriorityInfo(p)
+                              const isActive = priorityFilter.length === 0 || priorityFilter.includes(p)
+                              return (
+                                <button
+                                  key={p}
+                                  onClick={() => togglePriority(p)}
+                                  className={cn(
+                                    "w-12 h-10 flex items-center justify-center transition-all bg-transparent",
+                                    isActive ? "opacity-100 scale-125" : "opacity-40 hover:opacity-100 scale-100"
+                                  )}
+                                  title={info.label}
+                                >
+                                  <Flag className={cn("h-6 w-6 fill-current", info.color)} />
+                                </button>
+                              )
+                            })}
+                          </div>
                         </div>
 
-                        <div className="space-y-1.5">
-                          <Label className="text-xs font-black text-slate-400 uppercase tracking-widest px-1 ml-1">Hạn chót</Label>
-                          <Select value={timeFilter} onValueChange={(v) => { if (v) { setTimeFilter(v); setCurrentPage(1); } }}>
-                            <SelectTrigger className="h-11 border-none bg-white/60 hover:bg-white text-xs font-bold w-full rounded-xl shadow-sm">
-                              <div className="flex items-center gap-2">
-                                <Clock className="h-3.5 w-3.5 text-slate-400" />
-                                <SelectValue placeholder="Theo thời hạn" />
-                              </div>
-                            </SelectTrigger>
-                            <SelectContent className="rounded-xl border border-slate-100 bg-white shadow-2xl p-1.5">
-                              <SelectItem value="all" className="font-bold rounded-lg py-2.5">Mọi thời hạn</SelectItem>
-                              <SelectItem value="today" className="font-bold text-xs text-primary rounded-lg py-2.5">Deadline trong Hôm nay</SelectItem>
-                              <SelectItem value="this_week" className="font-bold text-xs rounded-lg py-2.5">Deadline trong Tuần này</SelectItem>
-                              <SelectItem value="overdue" className="font-bold text-xs text-rose-500 rounded-lg py-2.5">Đã bị quá hạn</SelectItem>
-                            </SelectContent>
-                          </Select>
+                        {/* Supplier (Inline Dropdown) */}
+                        <div className="space-y-3">
+                          <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1 ml-1">Nhà cung cấp</Label>
+                          <div className="relative">
+                            <Popover>
+                              <PopoverTrigger 
+                                render={
+                                  <Button 
+                                    variant="outline"
+                                    className="h-11 w-full justify-between border-slate-200 bg-white hover:bg-slate-50 text-[10px] font-bold rounded-2xl px-4"
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <Briefcase className="h-3.5 w-3.5 text-slate-400" />
+                                      <span className={cn(supplierFilter.length === 0 ? "text-slate-400" : "text-slate-700")}>
+                                        {supplierFilter.length === 0 ? "Tất cả nhà cung cấp" : `Đã chọn ${supplierFilter.length} nhà cung cấp`}
+                                      </span>
+                                    </div>
+                                    <ChevronDownIcon className="h-4 w-4 text-slate-400" />
+                                  </Button>
+                                }
+                              />
+                              <PopoverContent className="w-64 p-2 rounded-2xl border border-slate-100 bg-white/95 backdrop-blur-md shadow-xl" align="start">
+                                <div className="space-y-1 max-h-[300px] overflow-y-auto custom-scrollbar">
+                                  <button
+                                    onClick={() => setSupplierFilter([])}
+                                    className={cn(
+                                      "w-full flex items-center gap-3 p-2.5 rounded-xl transition-colors text-left",
+                                      supplierFilter.length === 0 ? "bg-primary/5 text-primary font-bold" : "hover:bg-slate-50 text-slate-600"
+                                    )}
+                                  >
+                                    <div className={cn("w-4 h-4 rounded border flex items-center justify-center", supplierFilter.length === 0 ? "bg-primary border-primary" : "border-slate-300")}>
+                                      {supplierFilter.length === 0 && <X className="h-2.5 w-2.5 text-white" />}
+                                    </div>
+                                    <span className="text-xs">Tất cả nhà cung cấp</span>
+                                  </button>
+                                  {uniqueSuppliers.map(s => (
+                                    <button
+                                      key={s.id}
+                                      onClick={() => toggleSupplier(s.id)}
+                                      className={cn(
+                                        "w-full flex items-center gap-3 p-2.5 rounded-xl transition-colors text-left",
+                                        supplierFilter.includes(s.id) ? "bg-primary/5 text-primary font-bold" : "hover:bg-slate-50 text-slate-600"
+                                      )}
+                                    >
+                                      <div className={cn("w-4 h-4 rounded border flex items-center justify-center", supplierFilter.includes(s.id) ? "bg-primary border-primary" : "border-slate-300")}>
+                                        {supplierFilter.includes(s.id) && <X className="h-2.5 w-2.5 text-white" />}
+                                      </div>
+                                      <div className={cn("w-1.5 h-1.5 rounded-full", supplierFilter.includes(s.id) ? "bg-primary" : "bg-slate-300")} />
+                                      <span className="text-xs truncate">{s.name}</span>
+                                    </button>
+                                  ))}
+                                  <button
+                                    onClick={() => toggleSupplier('none')}
+                                    className={cn(
+                                      "w-full flex items-center gap-3 p-2.5 rounded-xl transition-colors text-left",
+                                      supplierFilter.includes('none') ? "bg-primary/5 text-primary font-bold" : "hover:bg-slate-50 text-slate-400"
+                                    )}
+                                  >
+                                    <div className={cn("w-4 h-4 rounded border flex items-center justify-center", supplierFilter.includes('none') ? "bg-primary border-primary" : "border-slate-300")}>
+                                      {supplierFilter.includes('none') && <X className="h-2.5 w-2.5 text-white" />}
+                                    </div>
+                                    <span className="text-xs">Chưa định danh</span>
+                                  </button>
+                                </div>
+                              </PopoverContent>
+                            </Popover>
+                          </div>
+                        </div>
+
+                        {/* Date Range Picker (Inline) */}
+                        <div className="space-y-3">
+                          <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1 ml-1">Khoảng thời gian (Hạn chót)</Label>
+                          <div className="relative">
+                            <Popover>
+                              <PopoverTrigger 
+                                render={
+                                  <Button
+                                    variant="outline"
+                                    className={cn(
+                                      "h-11 border-slate-200 bg-white hover:bg-slate-50 text-[10px] font-bold w-full rounded-2xl justify-between px-4",
+                                      !dateRange.from && "text-slate-400"
+                                    )}
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <Clock className="h-3.5 w-3.5 text-slate-400" />
+                                      <span className={cn(dateRange.from ? "text-slate-700" : "text-slate-400")}>
+                                        {dateRange.from ? (
+                                          dateRange.to ? (
+                                            `${format(dateRange.from, "dd/MM")} - ${format(dateRange.to, "dd/MM")}`
+                                          ) : (
+                                            format(dateRange.from, "dd/MM/yyyy")
+                                          )
+                                        ) : (
+                                          "Bất kỳ lúc nào"
+                                        )}
+                                      </span>
+                                    </div>
+                                    <ChevronDownIcon className="h-4 w-4 text-slate-400" />
+                                  </Button>
+                                }
+                              />
+                              <PopoverContent className="w-auto p-0 rounded-3xl border border-slate-100 bg-white shadow-2xl" align="start">
+                                <Calendar
+                                  mode="range"
+                                  defaultMonth={dateRange.from}
+                                  selected={dateRange as any}
+                                  onSelect={(range) => setDateRange(range as any)}
+                                  numberOfMonths={1}
+                                  className="rounded-3xl border-none"
+                                />
+                              </PopoverContent>
+                            </Popover>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -413,7 +654,7 @@ export default function Dashboard() {
                     <ProjectCard 
                       key={project.id} 
                       project={project} 
-                      tasks={allTasks}
+                      tasks={filteredTasks}
                       categories={categories}
                       onEdit={(p) => {
                         setEditingProject(p)
@@ -475,7 +716,7 @@ export default function Dashboard() {
           ) : (
             <div className="flex flex-col h-full snap-start scroll-mt-2">
               <div className="glass-premium rounded-3xl p-6 shadow-sm border border-white/20 h-[calc(100vh-80px)] flex flex-col overflow-hidden">
-                 <CalendarView tasks={allTasks} onRefreshTasks={handleRefresh} className="flex-1 overflow-hidden" />
+                 <CalendarView tasks={filteredTasks} onRefreshTasks={handleRefresh} className="flex-1 overflow-hidden" />
               </div>
             </div>
           )}

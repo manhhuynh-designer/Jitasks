@@ -35,6 +35,13 @@ const STATUS_CONFIG: any = {
   done: { label: 'Done', color: 'bg-emerald-500', ghost: 'bg-emerald-50 text-emerald-600', icon: CheckCircle2 },
 }
 
+const formatTaskTime = (minutes: any) => {
+  if (typeof minutes !== 'number') return minutes;
+  const h = Math.floor(minutes / 60).toString().padStart(2, '0');
+  const m = (minutes % 60).toString().padStart(2, '0');
+  return `${h}:${m}`;
+}
+
 export function TaskHotlist({ 
   tasks, 
   title, 
@@ -104,7 +111,13 @@ export function TaskHotlist({
       const pB = priorityWeight[b.priority] || 0
       if (pA !== pB) return pB - pA
       
-      return dA.getTime() - dB.getTime()
+      if ((a.order_index || 0) !== (b.order_index || 0)) return (a.order_index || 0) - (b.order_index || 0);
+
+      const dAOriginal = new Date(a.deadline || 0)
+      const dBOriginal = new Date(b.deadline || 0)
+      if (dAOriginal.getTime() !== dBOriginal.getTime()) return dAOriginal.getTime() - dBOriginal.getTime()
+
+      return (a.task_time || 0) - (b.task_time || 0);
     })
 
   return (
@@ -159,10 +172,10 @@ export function TaskHotlist({
                     {task.projects?.name || "Dự án"} {task.project_categories?.name ? ` / ${task.project_categories.name}` : ''} {task.task_groups?.name ? ` / ${task.task_groups.name}` : ''}
                   </span>
                   <div className="flex items-center gap-1.5 shrink-0">
-                    {task.task_time && (
+                    {task.task_time != null && (
                       <div className="flex items-center gap-1 text-[10px] font-black text-primary bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100/50">
                         <Clock className="h-3 w-3" />
-                        {task.task_time}
+                        {formatTaskTime(task.task_time)}
                       </div>
                     )}
                     {task.deadline && (

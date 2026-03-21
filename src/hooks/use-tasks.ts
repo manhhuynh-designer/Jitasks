@@ -10,13 +10,12 @@ export type Task = {
   deadline: string
   start_date: string | null
   description: string | null
-  links: { title: string, url: string }[] | null
   status: 'todo' | 'inprogress' | 'pending' | 'done'
   priority: 'low' | 'medium' | 'high' | 'critical'
   assignee_id: string | null
   category_id: string | null
   task_group_id: string | null
-  task_time: string | null
+  task_time: number | null
   projects?: { name: string, status: string }
   assignees?: { full_name: string }
   project_categories?: { name: string }

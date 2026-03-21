@@ -585,13 +585,7 @@ export default function ProjectDetail() {
                                     </Popover>
                                   </div>
 
-                                  {/* Links Indicator */}
-                                  {task.links && task.links.length > 0 && (
-                                    <div className="flex items-center gap-1 text-[10px] font-bold text-primary">
-                                        <LinkIcon className="h-3 w-3" />
-                                        <span>{task.links.length}</span>
-                                    </div>
-                                  )}
+                                  {/* Links Indicator removed from v2.2 schema */}
                                 </div>
                               </div>
                               

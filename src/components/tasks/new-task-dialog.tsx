@@ -67,7 +67,6 @@ export function NewTaskDialog({
   const [deadline, setDeadline] = useState<Date>(new Date(Date.now() + 86400000 * 3))
   const [taskTime, setTaskTime] = useState('09:00')
   const [assigneeId, setAssigneeId] = useState<string | null>(null)
-  const [links, setLinks] = useState<{title: string, url: string}[]>([])
   const [profiles, setProfiles] = useState<{id: string, full_name: string}[]>([])
   const [projectName, setProjectName] = useState<string>('')
   const [loading, setLoading] = useState(false)
@@ -111,19 +110,17 @@ export function NewTaskDialog({
     if (initialCategoryId) setCategoryId(initialCategoryId)
   }, [initialCategoryId])
 
-  const addLink = () => setLinks([...links, { title: '', url: '' }])
-  const removeLink = (index: number) => setLinks(links.filter((_, i) => i !== index))
-  const updateLink = (index: number, field: 'title' | 'url', value: string) => {
-    const newLinks = [...links]
-    newLinks[index][field] = value
-    setLinks(newLinks)
-  }
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!name) return
 
     setLoading(true)
+
+    const timeToMinutes = (val: string) => {
+      if (!val || !val.includes(':')) return 0
+      const [h, m] = val.split(':').map(Number)
+      return (h || 0) * 60 + (m || 0)
+    }
     
     try {
       const taskData = {
@@ -136,9 +133,8 @@ export function NewTaskDialog({
         status: status as any,
         start_date: startDate.toISOString(),
         deadline: deadline.toISOString(),
-        task_time: taskTime,
-        assignee_id: assigneeId,
-        links: links.filter(l => l.url)
+        task_time: timeToMinutes(taskTime),
+        assignee_id: assigneeId
       }
       
       console.log("Attempting to insert task:", taskData)
@@ -172,7 +168,6 @@ export function NewTaskDialog({
       setTaskTime('09:00')
       setAssigneeId(null)
       setTaskGroupId(null)
-      setLinks([])
       onTaskCreated()
     } catch (err) {
       console.error("Unexpected error:", err)
@@ -296,14 +291,26 @@ export function NewTaskDialog({
             <div className="space-y-2">
               <Label htmlFor="t-time" className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">Giờ (hh:mm)</Label>
               <div className="relative group">
-                <Clock className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-primary transition-colors" />
-                <Input 
-                  id="t-time" 
-                  type="time"
-                  value={taskTime}
-                  onChange={(e) => setTaskTime(e.target.value)}
-                  className="pl-11 rounded-xl h-12 bg-white/90 border-none focus-visible:ring-primary/20 font-bold text-sm"
-                />
+                <Select value={taskTime} onValueChange={(v) => setTaskTime(v || "09:00")}>
+                  <SelectTrigger className="rounded-xl h-12 bg-white/90 border-none hover:bg-white/100 text-sm font-bold w-full px-4">
+                     <div className="flex items-center gap-2">
+                        <Clock className="h-4 w-4 text-slate-400 group-focus-within:text-primary transition-colors" />
+                        <SelectValue placeholder="Chọn giờ" />
+                     </div>
+                  </SelectTrigger>
+                  <SelectContent alignItemWithTrigger={false} align="start" side="bottom" sideOffset={4} className="max-h-[200px] rounded-xl border-none glass-premium shadow-2xl p-2 min-w-[var(--radix-select-trigger-width)]">
+                    {Array.from({ length: 48 }).map((_, i) => {
+                      const h = Math.floor(i / 2).toString().padStart(2, '0')
+                      const m = i % 2 === 0 ? '00' : '30'
+                      const val = `${h}:${m}`
+                      return (
+                        <SelectItem key={val} value={val} className="rounded-lg px-4 py-2 cursor-pointer focus:bg-primary/10 focus:text-primary font-bold text-sm">
+                          {val}
+                        </SelectItem>
+                      )
+                    })}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
@@ -328,35 +335,7 @@ export function NewTaskDialog({
               </Select>
             </div>
 
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">Links tài liệu</Label>
-                <Button type="button" variant="ghost" size="sm" onClick={addLink} className="h-6 text-[10px] font-black uppercase tracking-widest text-primary hover:bg-primary/10">
-                  <Plus className="h-3 w-3 mr-1" /> Thêm link
-                </Button>
-              </div>
-              <div className="space-y-2">
-                {links.map((link, idx) => (
-                  <div key={idx} className="flex gap-2 animate-in fade-in slide-in-from-left-2 duration-200">
-                    <Input 
-                      placeholder="Tiêu đề (VD: Google Drive)" 
-                      value={link.title}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateLink(idx, 'title', e.target.value)}
-                      className="rounded-xl h-9 bg-white/90 border-none text-[10px] font-medium flex-[1]"
-                    />
-                    <Input 
-                      placeholder="https://..." 
-                      value={link.url}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateLink(idx, 'url', e.target.value)}
-                      className="rounded-xl h-9 bg-white/90 border-none text-[10px] font-medium flex-[2]"
-                    />
-                    <Button type="button" variant="ghost" size="icon" onClick={() => removeLink(idx)} className="h-9 w-9 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50">
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </div>
+
 
             <div className="flex flex-col gap-6">
               <div className="space-y-3">
@@ -385,7 +364,9 @@ export function NewTaskDialog({
                   <Label className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">Nhóm Task</Label>
                   <Select value={taskGroupId || "none"} onValueChange={(val) => setTaskGroupId(val === "none" ? null : val)}>
                     <SelectTrigger className="h-11 rounded-xl bg-white/90 border-none hover:bg-white/100 px-4 text-xs font-medium">
-                      <SelectValue placeholder="Chọn nhóm task" />
+                      <SelectValue placeholder="Chọn nhóm task">
+                        {taskGroupId && taskGroupId !== "none" ? taskGroups.find((g: any) => g.id === taskGroupId)?.name : "Chọn nhóm task"}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent className="rounded-xl border-none glass-premium shadow-2xl p-2">
                       <SelectItem value="none" className="rounded-lg px-4 py-2 cursor-pointer focus:bg-primary/10 focus:text-primary font-medium text-xs">
