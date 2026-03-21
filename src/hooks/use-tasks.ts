@@ -19,7 +19,7 @@ export type Task = {
   projects?: { name: string, status: string }
   assignees?: { full_name: string }
   project_categories?: { name: string }
-  task_groups?: { id: string, name: string } | null
+  task_groups?: { id: string, name: string, start_date?: string | null, deadline?: string | null } | null
 }
 
 export function useTasks(options: { projectId?: string, dueSoon?: boolean } = {}) {

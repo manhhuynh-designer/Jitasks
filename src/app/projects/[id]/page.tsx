@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { Project } from '@/hooks/use-projects'
@@ -32,13 +32,18 @@ import {
   Link as LinkIcon,
   Copy,
   Search,
-  ArrowUpDown
+  ArrowUpDown,
+  Maximize2
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { vi } from 'date-fns/locale'
 import { cn } from '@/lib/utils'
 import { EditProjectDialog } from '@/components/projects/edit-project-dialog'
 import { NewTaskDialog } from '@/components/tasks/new-task-dialog'
+import { MiniGanttCard } from '@/components/gantt/mini-gantt-card'
+import { GroupTimelineModal } from '@/components/gantt/group-timeline-modal'
+import { AddGroupDialog } from '@/components/gantt/add-group-dialog'
+import { EditGroupDialog } from '@/components/gantt/edit-group-dialog'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -61,16 +66,30 @@ export default function ProjectDetail() {
   const [initialLoading, setInitialLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [isEditOpen, setIsEditOpen] = useState(false)
-  const [editingTask, setEditingTask] = useState<Task | null>(null)
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
   const [isEditTaskOpen, setIsEditTaskOpen] = useState(false)
+  const editingTask = tasks.find(t => t.id === editingTaskId)
   const [categories, setCategories] = useState<{id: string, name: string, color: string}[]>([])
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null)
-  const [taskGroups, setTaskGroups] = useState<{id: string, name: string, category_id: string}[]>([])
+  const [taskGroups, setTaskGroups] = useState<{
+    id: string, 
+    name: string, 
+    category_id: string,
+    start_date?: string | null,
+    deadline?: string | null
+  }[]>([])
+  const [expandedGroupId, setExpandedGroupId] = useState<string | null>(null)
   
   const [isCloneOpen, setIsCloneOpen] = useState(false)
   const [taskSearchQuery, setTaskSearchQuery] = useState('')
   const [taskSortOrder, setTaskSortOrder] = useState<'asc' | 'desc'>('asc')
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null)
   
+  const handleTaskClick = useCallback((taskId: string) => {
+    setEditingTaskId(taskId)
+    setIsEditTaskOpen(true)
+  }, [])
+
   const fetchData = useCallback(async (isSilent = false) => {
     if (!isSilent) setInitialLoading(true)
     else setIsRefreshing(true)
@@ -99,6 +118,7 @@ export default function ProjectDetail() {
       const { data: groupData } = await supabase
         .from('task_groups')
         .select('*')
+        .eq('project_id', id)
         .order('order_index', { ascending: true })
 
       if (catData) setCategories(catData)
@@ -127,28 +147,8 @@ export default function ProjectDetail() {
     }
   }, [id])
 
-  const addGroupTask = async () => {
-    const name = prompt('Nhập tên nhóm task mới:')
-    if (!name || !activeCategoryId) return
-    
-    const { error } = await supabase
-      .from('task_groups')
-      .insert({
-        name,
-        category_id: activeCategoryId,
-        created_by: (await supabase.auth.getUser()).data.user?.id
-      })
-    
-    if (error) {
-      console.error("Error creating task group:", error)
-      alert("Lỗi khi tạo nhóm task")
-      return
-    }
-    
-    fetchData(true)
-  }
 
-  const groupedTasks = useCallback(() => {
+  const groups = useMemo(() => {
     let filteredTasks = tasks.filter(t => t.category_id === activeCategoryId || (!t.category_id && activeCategoryId === categories[0]?.id))
     
     if (taskSearchQuery) {
@@ -162,33 +162,95 @@ export default function ProjectDetail() {
     })
 
     const currentGroups = taskGroups.filter(g => g.category_id === activeCategoryId)
-    const groups: {id: string, name: string, tasks: Task[]}[] = []
+    const result: {id: string, name: string, start_date?: string | null, deadline?: string | null, tasks: Task[]}[] = []
 
     // Add explicit groups
     currentGroups.forEach(group => {
-      groups.push({
+      const gTasks = filteredTasks.filter(t => t.task_group_id === group.id)
+      
+      const validStarts = gTasks.map(t => t.start_date ? new Date(t.start_date).getTime() : NaN).filter(n => !isNaN(n))
+      const validEnds = gTasks.map(t => t.deadline ? new Date(t.deadline).getTime() : NaN).filter(n => !isNaN(n))
+      
+      const computedStart = validStarts.length > 0 ? new Date(Math.min(...validStarts)).toISOString() : group.start_date
+      const computedEnd = validEnds.length > 0 ? new Date(Math.max(...validEnds)).toISOString() : group.deadline
+
+      result.push({
         id: group.id,
         name: group.name,
-        tasks: filteredTasks.filter(t => t.task_group_id === group.id)
+        start_date: computedStart,
+        deadline: computedEnd,
+        tasks: gTasks
       })
     })
 
     // Add ungrouped tasks
     const ungrouped = filteredTasks.filter(t => !t.task_group_id || !currentGroups.find(g => g.id === t.task_group_id))
     if (ungrouped.length > 0) {
-      groups.push({
+      const validStarts = ungrouped.map(t => t.start_date ? new Date(t.start_date).getTime() : NaN).filter(n => !isNaN(n));
+      const validEnds = ungrouped.map(t => t.deadline ? new Date(t.deadline).getTime() : NaN).filter(n => !isNaN(n));
+      
+      const minDate = validStarts.length > 0 ? new Date(Math.min(...validStarts)).toISOString() : new Date().toISOString();
+      const maxDate = validEnds.length > 0 ? new Date(Math.max(...validEnds)).toISOString() : new Date(Date.now() + 86400000 * 7).toISOString();
+
+      result.push({
         id: 'ungrouped',
         name: 'Chưa phân nhóm',
+        start_date: minDate,
+        deadline: maxDate,
         tasks: ungrouped
       })
     }
 
-    return groups
+    return result
   }, [tasks, activeCategoryId, categories, taskGroups, taskSearchQuery, taskSortOrder])
 
   useEffect(() => {
+    if (!id) return
+
+    // 1. Initial Fetch
     fetchData()
-  }, [fetchData])
+
+    // 2. Realtime Subscription
+    const channel = supabase
+      .channel(`project-tasks-${id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'tasks',
+          filter: `project_id=eq.${id}`
+        },
+        async (payload) => {
+          console.log('Realtime task change:', payload)
+          
+          if (payload.eventType === 'INSERT') {
+            // For inserts, we might need the joined data (assignees, task_groups)
+            // so we do a silent targeted fetch for this specific task
+            const { data } = await supabase
+              .from('tasks')
+              .select('*, assignees(full_name), task_groups(id, name)')
+              .eq('id', payload.new.id)
+              .single()
+            
+            if (data) {
+              setTasks(prev => [...prev, data as any])
+            }
+          } else if (payload.eventType === 'UPDATE') {
+            setTasks(prev => prev.map(t => 
+              t.id === payload.new.id ? { ...t, ...payload.new } : t
+            ))
+          } else if (payload.eventType === 'DELETE') {
+            setTasks(prev => prev.filter(t => t.id === payload.old.id))
+          }
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [id, fetchData])
 
   const updateTaskStatus = async (taskId: string, newStatus: string) => {
     const { error } = await supabase
@@ -331,38 +393,20 @@ export default function ProjectDetail() {
             {categories.length > 0 ? categories.map((cat, index) => (
               <button
                 key={cat.id}
-                onClick={async () => {
-                   if (project.status === cat.name) return
-                   
-                   // Optimistic UI updates
-                   setActiveCategoryId(cat.id)
-                   setProject({ ...project, status: cat.name as any })
-                   
-                   // Start silent refresh
-                   fetchData(true)
-                   
-                   // Background update
-                   await supabase
-                    .from('projects')
-                    .update({ status: cat.name as any })
-                    .eq('id', project.id)
-                }}
+                onClick={() => setActiveCategoryId(cat.id)}
                 className={cn(
                   "flex-1 py-4 text-[10px] font-black uppercase tracking-widest transition-all duration-300 relative group border-none outline-none rounded-none",
-                  project.status === cat.name 
-                    ? cn("text-white z-10", cat.color) 
-                    : cn("bg-slate-50 text-slate-400 hover:bg-white hover:text-slate-600")
+                  activeCategoryId === cat.id 
+                    ? cn("text-white z-10", cat.color || 'bg-slate-800') 
+                    : "bg-slate-50 text-slate-400 hover:bg-white hover:text-slate-600"
                 )}
-                style={project.status !== cat.name ? { 
+                style={activeCategoryId !== cat.id ? { 
                   backgroundColor: `${cat.color === 'bg-blue-500' ? '#eff6ff' : cat.color === 'bg-emerald-500' ? '#ecfdf5' : '#f8fafc'}`,
                   color: `${cat.color === 'bg-blue-500' ? '#3b82f6' : cat.color === 'bg-emerald-500' ? '#10b981' : '#94a3b8'}`,
                   opacity: 0.6
                 } : {}}
               >
                 {cat.name}
-                {project.status === cat.name && (
-                   <span className="absolute inset-0 bg-white/10 animate-pulse" />
-                )}
               </button>
             )) : (
               <p className="px-4 py-4 text-[10px] text-slate-400 font-bold uppercase tracking-widest italic animate-pulse w-full text-center">
@@ -391,6 +435,11 @@ export default function ProjectDetail() {
                     onChange={(e) => setTaskSearchQuery(e.target.value)}
                     className="pl-9 h-10 w-full sm:w-[200px] rounded-xl bg-slate-50 border-none font-medium"
                   />
+                  {isRefreshing && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      <div className="h-4 w-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                    </div>
+                  )}
                 </div>
                 <Button
                   variant="ghost"
@@ -413,222 +462,72 @@ export default function ProjectDetail() {
                     </Button>
                   }
                 />
-                <Button
-                  onClick={addGroupTask}
-                  className="h-10 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs gap-2 px-4 shadow-lg shadow-slate-200"
-                >
-                  <Plus className="h-4 w-4" />
-                  Thêm nhóm
-                </Button>
+                {activeCategoryId && (
+                  <AddGroupDialog 
+                    projectId={project.id} 
+                    categoryId={activeCategoryId} 
+                    onGroupCreated={() => fetchData(true)} 
+                    trigger={
+                      <Button
+                        className="h-10 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs gap-2 px-4 shadow-lg shadow-slate-200"
+                      >
+                        <Plus className="h-4 w-4" />
+                        Thêm nhóm
+                      </Button>
+                    }
+                  />
+                )}
               </div>
            </div>
 
-           {isRefreshing ? (
-             <div className="space-y-4 animate-in fade-in duration-500">
-               {[1, 2, 3].map(i => (
-                 <div key={i} className="h-24 w-full bg-slate-50/50 rounded-2xl border border-dashed border-slate-200 animate-pulse flex items-center px-6 gap-4">
-                   <div className="h-10 w-10 rounded-full bg-slate-100" />
-                   <div className="space-y-2 flex-1">
-                     <div className="h-4 w-1/3 bg-slate-100 rounded" />
-                     <div className="h-3 w-1/2 bg-slate-100/50 rounded" />
-                   </div>
-                 </div>
-               ))}
-             </div>
-           ) : (() => {
-             let filteredTasks = tasks.filter(t => t.category_id === activeCategoryId || (!t.category_id && activeCategoryId === categories[0]?.id))
-             
-             if (taskSearchQuery) {
-               filteredTasks = filteredTasks.filter(t => t.name.toLowerCase().includes(taskSearchQuery.toLowerCase()))
-             }
-             
-             filteredTasks.sort((a, b) => {
-               const dateA = new Date(a.deadline).getTime()
-               const dateB = new Date(b.deadline).getTime()
-               return taskSortOrder === 'desc' ? dateB - dateA : dateA - dateB
-             })
-
-              const groups = groupedTasks()
-              
-              if (groups.length === 0) {
-                return (
-                  <div className="py-20 text-center glass-premium rounded-[2.5rem] border-dashed border-2 border-slate-200 flex flex-col items-center gap-4">
-                    <div className="h-16 w-16 rounded-[2rem] bg-slate-50 flex items-center justify-center">
-                      <AlertCircle className="h-8 w-8 text-slate-200" />
-                    </div>
-                    <div>
-                      <p className="font-black text-slate-400 uppercase tracking-widest text-xs">No tasks found</p>
-                      <p className="text-slate-400 text-sm font-medium mt-1">Bắt đầu bằng cách thêm task mới.</p>
-                    </div>
-                  </div>
-                )
-              }
-
-              return (
-                <div key={activeCategoryId} className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500 ease-out">
-                  {groups.map(group => (
-                    <div key={group.id} className="space-y-4">
-                      <div className="flex items-center gap-3 px-2">
-                        <div className={cn("h-1.5 w-1.5 rounded-full", group.id === 'ungrouped' ? 'bg-slate-300' : 'bg-primary')} />
-                        <h4 className="text-xs font-black uppercase tracking-widest text-slate-400">{group.name}</h4>
-                        <div className="flex-1 h-[1px] bg-slate-100" />
-                        <span className="text-[10px] font-bold text-slate-300 bg-slate-50 px-2 py-0.5 rounded-md">{group.tasks.length}</span>
-                      </div>
+                    {(() => {
+                      const activeGroup = groups.find((g: any) => g.id === expandedGroupId)
                       
-                      <div className="space-y-3">
-                        {group.tasks.length > 0 ? (
-                          group.tasks.map(task => (
-                            <Card key={task.id} className="border-none shadow-none hover:bg-slate-50/50 transition-all group rounded-2xl overflow-visible cursor-pointer" onClick={() => {
-                                setEditingTask(task)
-                                setIsEditTaskOpen(true)
-                              }}>
-                            <CardContent className="p-4 flex items-center gap-4 overflow-visible">
-                              {/* Status Dropdown */}
-                              <div onClick={(e) => e.stopPropagation()}>
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger
-                                      render={
-                                        <button 
-                                            className={cn(
-                                              "h-8 w-8 rounded-xl flex items-center justify-center transition-all border-2 text-white shadow-sm",
-                                              STATUS_CONFIG[task.status as keyof typeof STATUS_CONFIG].color,
-                                              "border-transparent hover:scale-110 active:scale-95"
-                                            )}
-                                        >
-                                            {task.status === 'done' ? <CheckCircle2 className="h-4 w-4" /> : 
-                                            task.status === 'inprogress' ? <PlayCircle className="h-4 w-4" /> : 
-                                            task.status === 'pending' ? <Clock className="h-4 w-4" /> : 
-                                            <Circle className="h-4 w-4" />}
-                                        </button>
-                                      }
-                                  />
-                                  <DropdownMenuContent className="rounded-2xl border-none glass-premium shadow-2xl p-2 w-44">
-                                      {Object.entries(STATUS_CONFIG).map(([key, config]) => (
-                                        <DropdownMenuItem 
-                                            key={key} 
-                                            onClick={() => updateTaskStatus(task.id, key)}
-                                            className="rounded-xl px-4 py-2 cursor-pointer focus:bg-primary/10 focus:text-primary font-bold text-[10px] uppercase tracking-widest gap-2"
-                                        >
-                                            <div className={cn("h-2 w-2 rounded-full", config.color)} />
-                                            {config.label}
-                                        </DropdownMenuItem>
-                                      ))}
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              </div>
-
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <h4 className={cn("text-sm font-bold tracking-tight", task.status === 'done' && "line-through text-slate-400")}>
-                                    {task.name}
-                                  </h4>
-                                  {/* Status Badge */}
-                                  <Badge className={cn("px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-widest border-none", STATUS_CONFIG[task.status as keyof typeof STATUS_CONFIG].ghost)}>
-                                      {STATUS_CONFIG[task.status as keyof typeof STATUS_CONFIG].label}
-                                  </Badge>
-                                </div>
-                                
-                                {task.description && (
-                                  <p className="text-xs text-slate-400 font-medium line-clamp-1 mt-0.5">
-                                    {task.description}
-                                  </p>
-                                )}
-                                
-                                <div className="flex items-center gap-4 mt-1.5">
-                                  {/* Date Range */}
-                                  <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400">
-                                    <Clock className="h-3 w-3" />
-                                    {task.start_date ? format(new Date(task.start_date), 'dd/MM') : '??'} - {format(new Date(task.deadline), 'dd/MM/yyyy')}
-                                  </div>
-                                  
-                                  {/* Assignee */}
-                                  {task.assignee_id && (
-                                    <div className="flex items-center gap-1 text-[10px] font-bold text-slate-500">
-                                        <User className="h-3 w-3 text-slate-400" />
-                                        <span>{(task as any).assignees?.full_name}</span>
-                                    </div>
-                                  )}
-
-                                  {/* Priority Flag Interactive */}
-                                  <div onClick={(e) => e.stopPropagation()}>
-                                    <Popover>
-                                      <PopoverTrigger
-                                          render={
-                                            <button 
-                                                title={PRIORITY_CONFIG[task.priority as keyof typeof PRIORITY_CONFIG].label}
-                                                className={cn("flex items-center gap-1 transition-transform active:scale-90", PRIORITY_CONFIG[task.priority as keyof typeof PRIORITY_CONFIG].color)}
-                                            >
-                                                <Flag className="h-3.5 w-3.5 fill-current" />
-                                                <span className="text-[10px] font-black uppercase tracking-widest opacity-0 group-hover:opacity-80 transition-opacity">
-                                                  {task.priority}
-                                                </span>
-                                            </button>
-                                          }
-                                      />
-                                      <PopoverContent className="w-40 rounded-2xl border-none glass-premium shadow-2xl p-2" align="start">
-                                          <div className="space-y-1">
-                                            {Object.entries(PRIORITY_CONFIG).map(([key, config]) => (
-                                                <button 
-                                                  key={key}
-                                                  onClick={() => updateTaskPriority(task.id, key)}
-                                                  className={cn(
-                                                      "w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-white/50 transition-colors",
-                                                      config.color
-                                                  )}
-                                                >
-                                                  <Flag className="h-4 w-4 fill-current" />
-                                                  {config.label}
-                                                </button>
-                                            ))}
-                                          </div>
-                                      </PopoverContent>
-                                    </Popover>
-                                  </div>
-
-                                  {/* Links Indicator removed from v2.2 schema */}
-                                </div>
-                              </div>
-                              
-                              <DropdownMenu>
-                                <DropdownMenuTrigger
-                                  render={
-                                    <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 rounded-xl">
-                                      <MoreHorizontal className="h-4 w-4 text-slate-400" />
-                                    </Button>
-                                  }
-                                />
-                                <DropdownMenuContent align="end" className="rounded-2xl border-none glass-premium shadow-2xl p-2 w-40">
-                                  <DropdownMenuItem 
-                                    onClick={() => {
-                                      setEditingTask(task)
-                                      setIsEditTaskOpen(true)
-                                    }}
-                                    className="rounded-xl px-4 py-2 cursor-pointer focus:bg-primary/10 focus:text-primary font-bold text-xs gap-2"
-                                  >
-                                    <Pencil className="h-3.5 w-3.5" /> Sửa task
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem 
-                                    onClick={() => deleteTask(task.id)}
-                                    className="rounded-xl px-4 py-2 cursor-pointer focus:bg-red-50 focus:text-red-500 font-bold text-xs gap-2 text-red-500"
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5" /> Xóa task
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </CardContent>
-                          </Card>
-                          ))
-                        ) : (
-                          <div className="py-12 text-center glass-premium rounded-[2rem] border-dashed border-2 border-slate-100/50">
-                             <p className="text-[10px] font-black uppercase tracking-widest text-slate-300">Không có task trong nhóm này</p>
+                      if (groups.length === 0) {
+                        return (
+                          <div className="py-20 text-center glass-premium rounded-[2.5rem] border-dashed border-2 border-slate-200 flex flex-col items-center gap-4">
+                            <div className="h-16 w-16 rounded-[2rem] bg-slate-50 flex items-center justify-center">
+                              <AlertCircle className="h-8 w-8 text-slate-200" />
+                            </div>
+                            <div>
+                              <p className="font-black text-slate-400 uppercase tracking-widest text-xs">No tasks found</p>
+                              <p className="text-slate-400 text-sm font-medium mt-1">Bắt đầu bằng cách thêm task mới.</p>
+                            </div>
                           </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )
-            })()}
+                        )
+                      }
+
+                      return (
+                        <div key={activeCategoryId} className="space-y-12 animate-in fade-in slide-in-from-bottom-6 duration-700 ease-out">
+                          {/* Grid of Mini Gantt Cards */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+                            {groups.map(group => (
+                              <MiniGanttCard 
+                                key={group.id}
+                                group={group as any}
+                                tasks={group.tasks}
+                                onExpand={(id) => setExpandedGroupId(id)}
+                                onCardClick={() => setExpandedGroupId(group.id)}
+                                onTaskClick={handleTaskClick}
+                                onEditGroup={(id) => setEditingGroupId(id)}
+                              />
+                            ))}
+                          </div>
+
+                          {/* Full Timeline Modal */}
+                          {expandedGroupId && activeGroup && (
+                            <GroupTimelineModal 
+                              open={!!expandedGroupId}
+                              onOpenChange={(open) => !open && setExpandedGroupId(null)}
+                              group={activeGroup as any}
+                              onTaskClick={handleTaskClick}
+                              onTaskUpdated={() => fetchData(true)}
+                              tasks={activeGroup.tasks}
+                            />
+                          )}
+                        </div>
+                      )
+                    })()}
         </div>
 
         <div className="lg:col-span-4 space-y-10">
@@ -717,10 +616,20 @@ export default function ProjectDetail() {
         <EditTaskDialog
           task={editingTask}
           open={isEditTaskOpen}
-          onOpenChange={setIsEditTaskOpen}
-          onTaskUpdated={fetchData}
+          onOpenChange={(open) => {
+            setIsEditTaskOpen(open)
+            if (!open) setEditingTaskId(null)
+          }}
+          onTaskUpdated={() => fetchData(true)}
         />
       )}
+
+      <EditGroupDialog
+        groupId={editingGroupId}
+        open={!!editingGroupId}
+        onOpenChange={(open) => !open && setEditingGroupId(null)}
+        onGroupUpdated={() => fetchData(true)}
+      />
     </div>
   )
 }

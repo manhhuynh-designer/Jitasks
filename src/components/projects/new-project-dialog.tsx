@@ -120,24 +120,60 @@ export function NewProjectDialog({ onProjectCreated }: { onProjectCreated?: () =
         return
       }
 
+      // 1. Fetch global task groups (templates)
+      const { data: globalGroups } = await supabase
+        .from('task_groups')
+        .select('*')
+        .is('project_id', null)
+
+      const groupMapping: Record<string, string> = {}
+      
+      if (globalGroups && globalGroups.length > 0) {
+        // 2. Create project-specific groups
+        const groupsToCreate = globalGroups.map(g => ({
+          name: g.name,
+          category_id: g.category_id,
+          project_id: project.id,
+          order_index: g.order_index,
+          start_date: startDate.toISOString(),
+          deadline: new Date(startDate.getTime() + 86400000 * 7).toISOString(),
+          created_by: user.id
+        }))
+        
+        const { data: createdGroups, error: groupError } = await supabase
+          .from('task_groups')
+          .insert(groupsToCreate)
+          .select()
+        
+        if (groupError) {
+          console.error("Error creating project groups:", groupError)
+        } else if (createdGroups) {
+          // Map global group IDs to the new project-specific group IDs
+          // Since we inserted in order, we can map back if createdGroups is also sorted
+          // but safer to match by name and category_id
+          globalGroups.forEach(og => {
+            const ng = createdGroups.find(n => n.name === og.name && n.category_id === og.category_id)
+            if (ng) groupMapping[og.id] = ng.id
+          })
+        }
+      }
+
       const { data: templates } = await supabase
         .from('task_templates')
         .select('*')
 
       if (templates && templates.length > 0) {
-        // Find category IDs for mapping if templates only have status names
-        // or ensure we use the correct category_id if it exists in templates
         const tasksToCreate = templates.map(t => {
-          // Find matching category ID from our fetched categories
           const cat = categories.find(c => c.name === t.project_status)
           return {
             project_id: project.id,
-            category_id: t.category_id || cat?.id || null, // Priority to category_id if available
+            category_id: t.category_id || cat?.id || null,
             name: t.task_name,
             priority: t.default_priority || 'medium',
             status: 'todo',
-            deadline: new Date(Date.now() + 86400000 * 7).toISOString(), // +1 week
-            task_group_id: t.task_group_id,
+            start_date: startDate.toISOString(),
+            deadline: new Date(startDate.getTime() + 86400000 * 7).toISOString(),
+            task_group_id: t.task_group_id ? groupMapping[t.task_group_id] : null,
             created_by: user.id
           }
         })

@@ -71,7 +71,15 @@ type Category = {
 
 // --- Components ---
 
-function DraggableTemplate({ template, onDelete }: { template: TaskTemplate, onDelete: (id: string) => void }) {
+function DraggableTemplate({ 
+    template, 
+    onDelete,
+    onUpdated
+}: { 
+    template: TaskTemplate, 
+    onDelete: (id: string) => void,
+    onUpdated: () => void
+}) {
   const {
     attributes,
     listeners,
@@ -119,14 +127,29 @@ function DraggableTemplate({ template, onDelete }: { template: TaskTemplate, onD
              </Badge>
           </div>
         </div>
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          onClick={() => onDelete(template.id)}
-          className="h-7 w-7 rounded-lg text-slate-300 hover:text-rose-500 hover:bg-rose-50 opacity-0 group-hover/item:opacity-100 transition-opacity"
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </Button>
+        <div className="flex items-center gap-1 opacity-0 group-hover/item:opacity-100 transition-opacity">
+          <NewTemplateDialog 
+            template={template}
+            onTemplateUpdated={onUpdated}
+            trigger={
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-7 w-7 rounded-lg text-slate-300 hover:text-primary hover:bg-primary/5 transition-all"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+            }
+          />
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={() => onDelete(template.id)}
+            className="h-7 w-7 rounded-lg text-slate-300 hover:text-rose-500 hover:bg-rose-50 transition-all"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
       </div>
     </div>
   )
@@ -243,7 +266,12 @@ function GroupCard({
                 strategy={verticalListSortingStrategy}
             >
                 {templates.map(t => (
-                    <DraggableTemplate key={t.id} template={t} onDelete={onDeleteTemplate} />
+                    <DraggableTemplate 
+                        key={t.id} 
+                        template={t} 
+                        onDelete={onDeleteTemplate} 
+                        onUpdated={onRefresh}
+                    />
                 ))}
             </SortableContext>
             
@@ -295,7 +323,7 @@ export default function TemplatesOverhaul() {
     try {
       const [catRes, groupRes, templateRes] = await Promise.all([
         supabase.from('project_categories').select('*').order('order_index'),
-        supabase.from('task_groups').select('*').order('order_index'),
+        supabase.from('task_groups').select('*').is('project_id', null).order('order_index'),
         supabase.from('task_templates').select('*')
       ])
 
@@ -407,47 +435,85 @@ export default function TemplatesOverhaul() {
 
     if (error) {
         console.error('Error persisting DnD:', error.message, error.code, error.details)
+        alert('Lỗi khi kéo thả: ' + error.message)
         fetchData() // Rollback
     }
   }
 
   const handleAddGroup = async () => {
-    if (!newGroupName || !activeStageId) return
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    try {
+        if (!newGroupName || !activeStageId) return
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
 
-    const maxOrder = stageGroups.length > 0 ? Math.max(...stageGroups.map(g => g.order_index)) : -1
+        const maxOrder = stageGroups.length > 0 ? Math.max(...stageGroups.map(g => g.order_index)) : -1
 
-    const { error } = await supabase.from('task_groups').insert({
-      name: newGroupName,
-      category_id: activeStageId,
-      order_index: maxOrder + 1,
-      created_by: user.id
-    })
+        const { error } = await supabase.from('task_groups').insert({
+          name: newGroupName,
+          category_id: activeStageId,
+          order_index: maxOrder + 1,
+          created_by: user.id
+        })
 
-    if (!error) {
-      setNewGroupName('')
-      setIsAddingGroup(false)
-      fetchData()
+        if (error) throw error
+
+        setNewGroupName('')
+        setIsAddingGroup(false)
+        fetchData()
+    } catch (err: any) {
+        alert("Lỗi khi thêm nhóm: " + err.message)
     }
   }
 
   const handleDeleteGroup = async (id: string) => {
-    if (!confirm('Xóa nhóm này sẽ không xóa các template bên trong. Tiếp tục?')) return
-    const { error } = await supabase.from('task_groups').delete().eq('id', id)
-    if (!error) fetchData()
+    try {
+        if (!confirm('Xóa nhóm này sẽ không xóa các template bên trong. Tiếp tục?')) return
+
+        // 1. Detach templates from this group first to avoid foreign key constraint errors
+        const { error: updateError } = await supabase
+            .from('task_templates')
+            .update({ task_group_id: null })
+            .eq('task_group_id', id)
+            
+        if (updateError) throw updateError
+
+        // 2. Detach actual tasks from this group to avoid foreign key constraints (legacy data fallback)
+        const { error: tasksUpdateError } = await supabase
+            .from('tasks')
+            .update({ task_group_id: null })
+            .eq('task_group_id', id)
+
+        if (tasksUpdateError) throw tasksUpdateError
+
+        // 3. Delete the group
+        const { error } = await supabase.from('task_groups').delete().eq('id', id)
+        
+        if (error) throw error
+        
+        fetchData()
+    } catch (err: any) {
+        alert("Lỗi khi xóa nhóm: " + err.message)
+    }
   }
 
   const handleUpdateGroup = async (id: string, name: string) => {
-    const { error } = await supabase.from('task_groups').update({ name }).eq('id', id)
-    if (!error) fetchData()
+    try {
+        const { error } = await supabase.from('task_groups').update({ name }).eq('id', id)
+        if (error) throw error
+        fetchData()
+    } catch (err: any) {
+        alert("Lỗi khi đổi tên nhóm: " + err.message)
+    }
   }
 
   const deleteTemplate = async (id: string) => {
-    if (!confirm('Xóa template này?')) return
-    const { error } = await supabase.from('task_templates').delete().eq('id', id)
-    if (!error) {
-      setTemplates(prev => prev.filter(t => t.id !== id))
+    try {
+        if (!confirm('Xóa template này?')) return
+        const { error } = await supabase.from('task_templates').delete().eq('id', id)
+        if (error) throw error
+        setTemplates(prev => prev.filter(t => t.id !== id))
+    } catch (err: any) {
+        alert("Lỗi khi xóa template: " + err.message)
     }
   }
 

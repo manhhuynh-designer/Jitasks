@@ -300,6 +300,7 @@ export function EditTaskDialog({
       setLoading(false)
       setIsEditing(false)
       onTaskUpdated()
+      onOpenChange(false)
     } catch (err) {
       console.error("Unexpected error:", err)
       setLoading(false)
