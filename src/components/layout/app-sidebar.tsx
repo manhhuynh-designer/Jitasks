@@ -91,7 +91,7 @@ export function AppSidebar() {
     },
     {
       title: 'Quản lý Template',
-      url: '/templates',
+      url: '/categories',
       icon: Settings,
       action: <NewTemplateDialog trigger={
         <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg hover:bg-primary/10 hover:text-primary transition-all">

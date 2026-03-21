@@ -27,11 +27,15 @@ const PRIORITY_OPTIONS = [
 export function NewTemplateDialog({ 
   onTemplateCreated, 
   trigger,
-  defaultStatus 
+  defaultStatus,
+  defaultCategoryId,
+  defaultGroupId
 }: { 
   onTemplateCreated?: () => void,
   trigger?: React.ReactElement,
-  defaultStatus?: string
+  defaultStatus?: string,
+  defaultCategoryId?: string,
+  defaultGroupId?: string | null
 }) {
   const [open, setOpen] = useState(false)
   const [taskName, setTaskName] = useState('')
@@ -54,7 +58,13 @@ export function NewTemplateDialog({
       }
       fetchCategories()
     }
-  }, [open, defaultStatus])
+  }, [open, defaultStatus, defaultCategoryId])
+
+  useEffect(() => {
+    if (open && defaultGroupId) {
+      setTaskGroupId(defaultGroupId)
+    }
+  }, [open, defaultGroupId])
 
   useEffect(() => {
     const fetchGroups = async () => {
@@ -92,6 +102,7 @@ export function NewTemplateDialog({
           task_name: taskName, 
           project_status: projectStatus as any,
           default_priority: priority as any,
+          category_id: categories.find(c => c.name === projectStatus)?.id || defaultCategoryId,
           task_group_id: taskGroupId,
           created_by: user.id
         })

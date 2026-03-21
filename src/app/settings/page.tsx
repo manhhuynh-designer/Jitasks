@@ -225,7 +225,7 @@ export default function CategoryManagement() {
         console.error('Unauthorized user for reordering')
         return
       }
-      
+
       const upsertData = newCategories.map((cat, index) => ({
         id: cat.id,
         name: cat.name,

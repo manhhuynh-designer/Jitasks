@@ -91,3 +91,13 @@ body {
     outline-color: oklch(0.7 0.12 15 / 0.5);
   }
 }
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
