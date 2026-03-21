@@ -40,12 +40,7 @@ import {
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu"
 
-const STATUS_OPTIONS = [
-  { value: 'todo', label: 'To Do', color: 'bg-slate-500', icon: Circle },
-  { value: 'inprogress', label: 'In Progress', color: 'bg-sky-400', icon: PlayCircle },
-  { value: 'pending', label: 'Pending', color: 'bg-orange-400', icon: Clock },
-  { value: 'done', label: 'Done', color: 'bg-green-500', icon: CheckCircle2 },
-]
+import { STATUS_OPTIONS, getStatusInfo } from '@/lib/status-utils'
 
 import { PRIORITY_OPTIONS, getPriorityInfo } from '@/lib/priority-utils'
 

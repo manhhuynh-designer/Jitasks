@@ -1,32 +1,32 @@
-import { differenceInDays } from 'date-fns'
+import { differenceInCalendarDays, startOfDay } from 'date-fns'
 
 /**
  * Calculates the left percentage and width percentage for a Gantt bar
- * relative to a group's date range.
+ * relative to a group's date range using millisecond precision.
  */
 export const calculateGanttPercentages = (
   start: Date | string | null,
   end: Date | string | null,
   groupStart: Date | string | null,
-  groupEnd: Date | string | null
+  totalDays: number // Use the explicit number of day-columns for scale
 ) => {
-  if (!groupStart || !groupEnd || !end) return { left: 0, width: 0 }
+  if (!groupStart || !totalDays || !end) return { left: 0, width: 0 }
 
-  const gStart = new Date(groupStart)
-  const gEnd = new Date(groupEnd)
-  // Ensure duration is at least 1 day to avoid division by zero
-  const groupDuration = Math.max(1, differenceInDays(gEnd, gStart) + 1)
+  const gStart = new Date(new Date(groupStart).setHours(0, 0, 0, 0))
+  // Total milliseconds in the view
+  const groupDurationMs = totalDays * 24 * 60 * 60 * 1000
 
-  const s = start ? new Date(start) : new Date(end)
+  const s = new Date(start ? new Date(start) : new Date(end))
   const e = new Date(end)
 
-  // Calculate days from group start
-  const daysFromStart = differenceInDays(s, gStart)
-  const taskDuration = Math.max(1, differenceInDays(e, s) + 1)
+  // Calculate offset and duration in MS
+  const msFromStart = s.getTime() - gStart.getTime()
+  // Ensure duration is at least 1 day if dates are same
+  const durationMs = Math.max(24 * 60 * 60 * 1000, e.getTime() - s.getTime() + (24 * 60 * 60 * 1000))
 
-  // Convert to percentages
-  let left = (daysFromStart / groupDuration) * 100
-  let width = (taskDuration / groupDuration) * 100
+  // Convert to percentages relative to total grid time
+  let left = (msFromStart / groupDurationMs) * 100
+  let width = (durationMs / groupDurationMs) * 100
 
   // Clamping logic:
   // If task starts before group, left is 0 and width is reduced

@@ -74,8 +74,8 @@ export function MiniGanttCard({ group, tasks, onExpand, onCardClick, onTaskClick
             {group.name}
           </CardTitle>
           {hasDates ? (
-            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">
-              {format(startDate!, 'dd MMM')} - {format(deadline!, 'dd MMM')}
+            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+              {format(startDate!, 'dd/MM/yyyy')} - {format(deadline!, 'dd/MM/yyyy')}
             </p>
           ) : (
             <p className="text-[9px] font-bold text-rose-400 italic uppercase">Set dates to view</p>

@@ -426,14 +426,14 @@ export default function ProjectDetail() {
                   Danh sách Task
                 </h3>
               </div>
-              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto ">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                   <Input 
                     placeholder="Tìm task..." 
                     value={taskSearchQuery}
                     onChange={(e) => setTaskSearchQuery(e.target.value)}
-                    className="pl-9 h-10 w-full sm:w-[200px] rounded-xl bg-slate-50 border-none font-medium"
+                    className="pl-9 h-10 w-full sm:w-[200px] rounded-xl bg-slate-50 border-slate-200 font-medium"
                   />
                   {isRefreshing && (
                     <div className="absolute right-3 top-1/2 -translate-y-1/2">
@@ -449,34 +449,36 @@ export default function ProjectDetail() {
                   <ArrowUpDown className="h-4 w-4" />
                   {taskSortOrder === 'desc' ? 'Gần nhất' : 'Xa nhất'}
                 </Button>
-                <NewTaskDialog 
-                  projectId={project.id} 
-                  initialCategoryId={activeCategoryId || undefined}
-                  onTaskCreated={() => fetchData(true)} 
-                  trigger={
-                    <Button 
-                      size="icon"
-                      className="h-10 w-10 rounded-xl bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20 transition-all active:scale-90"
-                    >
-                      <Plus className="h-5 w-5" />
-                    </Button>
-                  }
-                />
-                {activeCategoryId && (
-                  <AddGroupDialog 
+                {/* Dual Button Group: New Task & Add Group */}
+                <div className="flex items-center h-10 rounded-xl bg-primary text-white shadow-lg shadow-primary/20 overflow-hidden ring-1 ring-white/10 shrink-0">
+                  <NewTaskDialog 
                     projectId={project.id} 
-                    categoryId={activeCategoryId} 
-                    onGroupCreated={() => fetchData(true)} 
+                    initialCategoryId={activeCategoryId || undefined}
+                    onTaskCreated={() => fetchData(true)} 
                     trigger={
-                      <Button
-                        className="h-10 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs gap-2 px-4 shadow-lg shadow-slate-200"
-                      >
+                      <button className="h-full pl-4 pr-3 flex items-center gap-2 hover:bg-white/10 transition-all font-bold text-xs active:scale-[0.98]">
                         <Plus className="h-4 w-4" />
-                        Thêm nhóm
-                      </Button>
+                        <span>Task mới</span>
+                      </button>
                     }
                   />
-                )}
+                  {activeCategoryId && (
+                    <>
+                      <div className="w-[1px] h-4 bg-white/20 shrink-0" />
+                      <AddGroupDialog 
+                        projectId={project.id} 
+                        categoryId={activeCategoryId} 
+                        onGroupCreated={() => fetchData(true)} 
+                        trigger={
+                          <button className="h-full pl-3 pr-4 flex items-center gap-2 hover:bg-white/10 transition-all font-bold text-xs active:scale-[0.98]">
+                            <Plus className="h-3.5 w-3.5 opacity-70" />
+                            <span>Thêm nhóm</span>
+                          </button>
+                        }
+                      />
+                    </>
+                  )}
+                </div>
               </div>
            </div>
 

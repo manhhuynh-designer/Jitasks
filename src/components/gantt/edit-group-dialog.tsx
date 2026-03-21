@@ -13,8 +13,15 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Layers, Save, Calendar } from 'lucide-react'
+import { Layers, Save, Calendar as CalendarIcon } from 'lucide-react'
 import { format } from 'date-fns'
+import { Calendar } from '@/components/ui/calendar'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import { cn } from '@/lib/utils'
 
 interface EditGroupDialogProps {
   groupId: string | null
@@ -25,8 +32,8 @@ interface EditGroupDialogProps {
 
 export function EditGroupDialog({ groupId, open, onOpenChange, onGroupUpdated }: EditGroupDialogProps) {
   const [name, setName] = useState('')
-  const [startDate, setStartDate] = useState('')
-  const [deadline, setDeadline] = useState('')
+  const [startDate, setStartDate] = useState<Date | null>(null)
+  const [deadline, setDeadline] = useState<Date | null>(null)
   const [loading, setLoading] = useState(false)
   const [fetching, setFetching] = useState(false)
 
@@ -42,8 +49,8 @@ export function EditGroupDialog({ groupId, open, onOpenChange, onGroupUpdated }:
         
         if (data) {
           setName(data.name)
-          setStartDate(data.start_date ? format(new Date(data.start_date), 'yyyy-MM-dd') : '')
-          setDeadline(data.deadline ? format(new Date(data.deadline), 'yyyy-MM-dd') : '')
+          setStartDate(data.start_date ? new Date(data.start_date) : null)
+          setDeadline(data.deadline ? new Date(data.deadline) : null)
         }
         setFetching(false)
       }
@@ -61,8 +68,8 @@ export function EditGroupDialog({ groupId, open, onOpenChange, onGroupUpdated }:
         .from('task_groups')
         .update({
           name,
-          start_date: startDate ? new Date(startDate).toISOString() : null,
-          deadline: deadline ? new Date(deadline).toISOString() : null,
+          start_date: startDate ? startDate.toISOString() : null,
+          deadline: deadline ? deadline.toISOString() : null,
         })
         .eq('id', groupId)
 
@@ -113,30 +120,60 @@ export function EditGroupDialog({ groupId, open, onOpenChange, onGroupUpdated }:
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-3">
-                  <Label htmlFor="eg-start" className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-2">Ngày Bắt Đầu</Label>
-                  <div className="relative">
-                    <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                    <Input
-                      id="eg-start"
-                      type="date"
-                      value={startDate}
-                      onChange={(e) => setStartDate(e.target.value)}
-                      className="rounded-[1.5rem] h-14 bg-slate-50/50 border-none focus-visible:ring-primary/20 font-black text-slate-800 pl-11 pr-6 shadow-inner"
+                  <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-2">Ngày Bắt Đầu</Label>
+                  <Popover>
+                    <PopoverTrigger
+                      render={
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "w-full h-14 justify-start text-left font-black rounded-[1.5rem] bg-slate-50/50 border-none hover:bg-slate-100 transition-all px-6 text-slate-800 shadow-inner",
+                            !startDate && "text-slate-400"
+                          )}
+                        >
+                          <CalendarIcon className="mr-3 h-4 w-4 text-slate-400" />
+                          {startDate ? format(startDate, "dd/MM/yyyy") : <span>Chọn ngày</span>}
+                        </Button>
+                      }
                     />
-                  </div>
+                    <PopoverContent className="w-auto p-0 rounded-2xl border-none shadow-2xl" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={startDate || undefined}
+                        onSelect={(date) => setStartDate(date || null)}
+                        initialFocus
+                        className="rounded-2xl"
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </div>
                 <div className="space-y-3">
-                  <Label htmlFor="eg-deadline" className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-2">Deadline</Label>
-                  <div className="relative">
-                    <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                    <Input
-                      id="eg-deadline"
-                      type="date"
-                      value={deadline}
-                      onChange={(e) => setDeadline(e.target.value)}
-                      className="rounded-[1.5rem] h-14 bg-slate-50/50 border-none focus-visible:ring-primary/20 font-black text-slate-800 pl-11 pr-6 shadow-inner"
+                  <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-2">Hạn Chót</Label>
+                  <Popover>
+                    <PopoverTrigger
+                      render={
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "w-full h-14 justify-start text-left font-black rounded-[1.5rem] bg-slate-50/50 border-none hover:bg-slate-100 transition-all px-6 text-slate-800 shadow-inner",
+                            !deadline && "text-slate-400"
+                          )}
+                        >
+                          <CalendarIcon className="mr-3 h-4 w-4 text-slate-400" />
+                          {deadline ? format(deadline, "dd/MM/yyyy") : <span>Chọn ngày</span>}
+                        </Button>
+                      }
                     />
-                  </div>
+                    <PopoverContent className="w-auto p-0 rounded-2xl border-none shadow-2xl" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={deadline || undefined}
+                        onSelect={(date) => setDeadline(date || null)}
+                        initialFocus
+                        className="rounded-2xl"
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </div>
               </div>
             </div>
@@ -145,7 +182,7 @@ export function EditGroupDialog({ groupId, open, onOpenChange, onGroupUpdated }:
               <Button 
                 type="submit" 
                 disabled={loading || !name} 
-                className="w-full rounded-[2rem] h-16 font-black text-lg shadow-2xl shadow-primary/30 bg-primary text-white hover:bg-primary/95 transition-all hover:scale-[1.02] active:scale-95 gap-2"
+                className="w-full rounded-[2rem] h-16 font-black text-lg bg-primary text-white hover:bg-primary/95 transition-all hover:scale-[1.02] active:scale-95 gap-2"
               >
                 <Save className="h-5 w-5" />
                 {loading ? 'Đang lưu...' : 'Lưu Thay Đổi'}
