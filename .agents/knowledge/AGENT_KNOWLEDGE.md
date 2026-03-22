@@ -9,63 +9,80 @@ High-performance project management with a premium UI, focusing on operational e
 - **Next.js 15 (App Router)**: Uses server components for layouts and client components for interactive pages.
 - **Supabase**: 
   - **Auth**: Redirects unauthenticated users to `/login`.
-  - **Database**: PostgreSQL with RLS. Direct table queries for management pages; custom hooks for core data. Special attention is required for RLS policies during bulk data imports (e.g., inserting task groups).
+  - **Database (v2.2)**: PostgreSQL with RLS. Direct table queries for management pages. 
+    - **Security Pattern**: RLS policies are split into 4 distinct operations (SELECT, INSERT, UPDATE, DELETE) per table. This ensures accurate `deleted_at IS NULL` filtering for SELECT while allowing owners to UPDATE `deleted_at` for soft deletes.
+    - **Audit Logs**: Protected via `audit_log_no_direct_write` policy. Client writes are blocked; all logging is handled server-side via `SECURITY DEFINER` triggers.
 - **State & Data**:
-  - **Hooks**: `useProjects`, `useTasks` handle main data streams with caching (via `refresh` triggers).
-  - **Real-time UI**: Status changes are handled optimistically or via callbacks (e.g., in the Calendar) to avoid full refetches where possible.
-  - **Filtering**: Client-side filtering using `useMemo` for performance.
+  - **Hooks**: `useProjects`, `useTasks` handle main data streams with caching.
+  - **Real-time UI**: Status changes utilize callbacks (e.g., in Calendar/Gantt) for instant feedback without full refetches.
+  - **Filtering**: Centralized logic in `src/lib/` (e.g., `priority-utils.ts`). Project filtering aligns with database ENUMs.
 - **UI System**:
-  - **Glassmorphism**: Custom class `glass-premium` for consistent translucent effects.
-  - **Dialogs**: Unified components (e.g., `NewSupplierDialog`) handle both creation and editing. Project dialogs track core meta-data like start dates via integrated calendar components.
+  - **Glassmorphism**: `glass-premium` for consistent translucent surfaces.
+  - **Dialog Design**: High-end consistency across `EditTaskDialog`, `NewTemplateDialog`, and `NewSupplierDialog` using premium typography and glass effects.
+  - **Bleed Effects**: Projects detail page uses a full-bleed cover image sitting behind the global header for a modern aesthetic.
 
 ## 📂 Feature Deep Dive
 
 ### 1. Dashboard & Task Hotlist (`src/app/page.tsx`)
-- **Main View**: Dashboard with project grid and a calendar toggle.
-- **Hotlist (Sidebar)**: 
-  - **Today's Tasks**: Filtered by `deadline === today` and `status !== 'done'`.
-  - **Upcoming Tasks**: Filtered by range (7 days, 30 days, or All).
-- **Search**: Global search across project names, supplier names, and task names.
+- **Main View**: Dashboard with project grid and calendar toggle.
+- **Hotlist**: Filtered view of tasks (Today, Upcoming, All).
+- **Filtering**: Multi-dimensional filtering across Project Status (ENUM aligned) and Priority (proper background colors and logic).
 
 ### 2. Project Management (`src/app/projects/`)
-- **Project List (`/page.tsx`)**: Filterable view of all projects.
-- **Project Detail (`/[id]/page.tsx`)**:
-  - **Stage Switcher**: Interactive bar representing `project_categories`. Updates the `projects.status` field.
-  - **Task Lifecycle**: Tasks are associated with categories (stages). The UI emphasizes progress within the current stage.
-  - **Summary**: Real-time progress calculation (`completedTasks / totalTasks`).
+- **Project Detail**: 
+  - **Cover Image**: Managed via `cover_url`. Supports "Change Cover" via integrated upload/selection UI. Features a full-bleed layout.
+  - **Stage Switcher**: Interactive bar representing Stages/Categories. Syncs with `projects.status`.
+  - **Gantt Preview**: `MiniGanttCard` provides a high-level timeline of task groups within the project.
 
-### 3. Specialized Task Calendar (`src/components/tasks/calendar-view.tsx`)
-- **Month/Week Views**: Uses `date-fns` for interval calculation. The UI is a premium, artifact-free responsive grid with synchronized, rounded sticky headers.
-- **Business Logic**: Tasks are only visible if `task.project_categories?.name === task.projects?.status` (this ensures tasks shown are relevant to the project's current operational stage).
-- **Interactions**:
-  - `Day Details Modal`: Aggregates all tasks for a specific date.
-  - `Quick Jump`: Popover with a mini-calendar for rapid navigation.
-  - **Task Cards**: Simplified in Weekly view; utilizes callbacks to instantly reflect data updates like status toggles.
+### 3. Specialized Visualization
+- **Calendar (`src/components/tasks/calendar-view.tsx`)**: Artifact-free responsive grid with synchronized sticky headers. Monthly/Weekly views with instant status callbacks.
+- **Gantt Layer**: 
+  - **Data Structure**: `task_groups` support `start_date` and `end_date` for temporal plotting.
+  - **Utilities**: `calculateGanttPercentages` handles millisecond-precision positioning and clamping.
 
-### 4. Management Modules
-- **Suppliers (`src/app/suppliers/`)**: Tracks external partners. Links to projects via `supplier_id`.
-- **Assignees (`src/app/assignees/`)**: Manages staff. Tracks project participation by counting unique `project_id` across assigned tasks.
-- **Local Data Importer (`src/app/debug/import/`)**: A local-only debug facility for uploading JSON payloads. It enables safe testing of imports, relational integrity validations (like nested task groups), and circumvents production data pollution.
+### 4. Management & Templates
+- **Task Templates**: Managed via `src/components/templates/new-template-dialog.tsx`. Fully consistent with premium dialog design system.
+- **Assignees & Suppliers**: Core relational entities linking personnel and partners to project workloads.
+- **Debug Importer**: Local-only facility for complex JSON data ingestion.
 
 ## 🗄️ Core File Mapping
 
 | File Path | Responsibility |
 |-----------|----------------|
+| **Core & App Routes** | |
 | `src/app/layout.tsx` | Auth guards, Sidebar initialization, Global Header |
-| `src/app/page.tsx` | Main Dashboard, Hotlist logic, Global Filter |
-| `src/app/projects/[id]/page.tsx` | Project Detail, Stage Switching, Task Management |
-| `src/components/tasks/calendar-view.tsx` | Complex Calendar Logic (Month/Week) |
+| `src/app/page.tsx` | Dashboard (Projects, Calendar, Hotlist), Global Filter |
+| `src/app/projects/page.tsx` | Project Management List |
+| `src/app/projects/[id]/page.tsx` | Project Detail (Bleed Cover, Stage Switching, Tasks) |
+| `src/app/suppliers/page.tsx` | Supplier Management Page |
+| `src/app/assignees/page.tsx` | Assignee Management Page |
+| `src/app/categories/page.tsx` | Stage/Category Management Page |
+| `src/app/templates/page.tsx` | Task Template Management Page |
+| **Gantt & Visualization** | |
+| `src/components/gantt/mini-gantt-card.tsx` | Project timeline preview on Dashboard/Details |
+| `src/components/gantt/group-timeline-modal.tsx` | Detailed Gantt Chart View |
+| `src/components/gantt/edit-group-dialog.tsx` | Edit Task Groups (start/end dates) |
+| `src/components/gantt/gantt-bar.tsx` | Individual Gantt Bar UI component |
+| `src/components/tasks/calendar-view.tsx` | Complex Month/Week Calendar visualization |
+| `src/lib/gantt-utils.ts` | Gantt position/width calculation logic |
+| **Task & Project Management** | |
+| `src/components/tasks/edit-task-dialog.tsx` | Comprehensive Task Editor |
+| `src/components/tasks/new-task-dialog.tsx` | Task Creation Dialog |
+| `src/components/projects/new-project-dialog.tsx` | Project Creation Flow |
+| `src/components/projects/edit-project-dialog.tsx` | Project Metadata Editor |
+| `src/components/templates/new-template-dialog.tsx` | Premium Template Management UI |
+| **Data & Infrastructure** | |
 | `src/hooks/use-tasks.ts` | Centralized Task Fetching with Relational Joins |
 | `src/hooks/use-projects.ts` | Project Fetching with Dynamic Status Colors |
-| `src/lib/supabase.ts` | Supabase Client Config |
-| `supabase/schema.sql` | SSOT for Database Modeling & RLS |
+| `src/hooks/use-auth.ts` | Supabase Auth State Wrapper |
+| `src/lib/priority-utils.ts` | Priority Icons & Color Definitions |
+| `supabase/schema.sql` | SSOT for Database Modeling & RLS (v2.2) |
 | `src/app/debug/import/page.tsx` | Local debug tool for uploading complex JSON data |
 
 ## 🔑 Key SQL Relations
-- `projects.supplier_id` ➡️ `suppliers.id`
-- `tasks.project_id` ➡️ `projects.id`
-- `tasks.assignee_id` ➡️ `assignees.id`
+- `projects.cover_url` ➡️ Public URL for project header backgrounds.
+- `task_groups.start_date / end_date` ➡️ Temporal windows for Gantt plotting.
 - `projects.status` (text) matches `project_categories.name` (text) for UI color/logic matching.
 
 ---
-*Last Updated: 2026-03-21*
+*Last Updated: 2026-03-22*

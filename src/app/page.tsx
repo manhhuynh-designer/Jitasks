@@ -10,7 +10,7 @@ import { TaskHotlist } from '@/components/tasks/task-hotlist'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
-import { Plus, Search, Calendar as CalendarIcon, LayoutGrid, Filter, ChevronLeft, ChevronRight, ChevronDownIcon, X, Briefcase, Tag, Clock, Flag, ArrowDownUp } from 'lucide-react'
+import { Plus, Search, Calendar as CalendarIcon, LayoutGrid, Filter, ChevronLeft, ChevronRight, ChevronDownIcon, X, Briefcase, Tag, Clock, Flag, ArrowDownUp, Command } from 'lucide-react'
 import {
   Popover,
   PopoverContent,
@@ -25,6 +25,11 @@ import { NewProjectDialog } from '@/components/projects/new-project-dialog'
 import { EditProjectDialog } from '@/components/projects/edit-project-dialog'
 import { cn } from '@/lib/utils'
 import { Project } from '@/hooks/use-projects'
+import { GlobalKPIBanner } from '@/components/dashboard/global-kpi-banner'
+import { SourcingPipelineBar } from '@/components/dashboard/sourcing-pipeline-bar'
+import { GlobalSearch } from '@/components/dashboard/global-search'
+import { TaskCompletionHeatmap } from '@/components/dashboard/task-completion-heatmap'
+import { TaskStatusDonut } from '@/components/dashboard/task-status-donut'
 
 const PROJECT_STATUSES = [
   { value: 'Sourcing', label: 'Sourcing', color: 'bg-blue-500 text-white' },
@@ -113,6 +118,7 @@ export default function Dashboard() {
 
   const [cloningProject, setCloningProject] = useState<Project | null>(null)
   const [isCloneOpen, setIsCloneOpen] = useState(false)
+  const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState(false)
 
   const handleRefresh = () => {
     refreshProjects()
@@ -171,6 +177,11 @@ export default function Dashboard() {
 
     return result
   }, [allTasks, searchQuery, priorityFilter, supplierFilter, dateRange])
+
+  const activeContextTasks = useMemo(() => {
+    const activeProjectIds = new Set(projects.filter(p => (p.status || '').toLowerCase() !== 'archive').map(p => p.id))
+    return allTasks.filter(t => activeProjectIds.has(t.project_id))
+  }, [projects, allTasks])
 
   const filteredProjects = useMemo(() => {
     let result = projects
@@ -347,31 +358,25 @@ export default function Dashboard() {
         </div>
       </section>
 
-      {/* NEW Cleaner Multi-Criteria Filter Bar */}
-      <section className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 bg-white/40 p-1.5 rounded-3xl glass-premium border border-white/60">
-        <div className="relative group flex-1">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-primary transition-all duration-300" />
-          <Input 
-            placeholder="Tìm kiếm dự án, đầu việc, nhà cung cấp..." 
-            className="pl-11 h-12 w-full rounded-2xl border-none bg-white/60 focus-visible:ring-primary/10 transition-all text-sm font-medium pr-10"
-            value={searchQuery}
-            onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-          />
-          {searchQuery && (
-            <button 
-               onClick={() => {setSearchQuery(''); setCurrentPage(1);}}
-               className="absolute right-4 top-1/2 -translate-y-1/2 h-6 w-6 rounded-lg hover:bg-slate-200/50 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors"
-            >
-               <X className="h-3.5 w-3.5" />
-            </button>
-          )}
-        </div>
-      </section>
+      {/* ✅ NEW: Analytics Banner & Pipeline */}
+      <div className="grid gap-6">
+        <GlobalKPIBanner projects={projects} tasks={allTasks} />
+        <SourcingPipelineBar 
+          projects={projects} 
+          categories={categories}
+          onStageClick={(status) => {
+            setStatusFilter(prev => 
+              prev.includes(status) ? prev.filter(s => s !== status) : [...prev, status]
+            )
+          }}
+        />
+      </div>
 
-      <div className="flex flex-col lg:flex-row gap-8 items-start">
+
+      <div className="flex flex-col lg:flex-row gap-8 lg:items-stretch items-start">
         {/* Left Column: Project Grid */}
         <div className="flex-1 min-w-0 w-full space-y-6">
-          <div className="flex items-center justify-between border-b border-white/40 pb-6 mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 border-b border-white/40 pb-6 mb-6">
             <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
               Dự án đang triển khai
               <span className="h-6 px-2.5 flex items-center justify-center bg-primary/10 text-primary text-xs rounded-full font-bold">
@@ -380,6 +385,34 @@ export default function Dashboard() {
             </h3>
             
             <div className="flex items-center gap-3">
+              {/* Compact Search Bar next to Sort/Filter */}
+              <div className="relative group flex-1 sm:flex-initial">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-primary transition-all duration-300" />
+                <Input 
+                  placeholder="Tìm dự án..." 
+                  className="pl-10 h-11 w-full sm:w-[200px] lg:w-[260px] rounded-2xl border-none bg-white/40 glass-premium focus-visible:ring-primary/10 transition-all text-xs font-bold pr-16"
+                  value={searchQuery}
+                  onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+                />
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                  {searchQuery && (
+                    <button 
+                      onClick={() => {setSearchQuery(''); setCurrentPage(1);}}
+                      className="h-7 w-7 rounded-lg hover:bg-slate-200/50 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                  <button 
+                    onClick={() => setIsGlobalSearchOpen(true)}
+                    title="Tìm kiếm nâng cao (Ctrl+K)"
+                    className="h-7 w-7 rounded-lg bg-primary/10 text-primary hover:bg-primary hover:text-white flex items-center justify-center transition-all duration-300"
+                  >
+                    <Command className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+
               {/* Grouped Sort & Filter - Icon Only */}
               <div className="flex p-1 bg-white/40 glass-premium rounded-2xl border border-white/60 h-11 items-center">
                 <Button 
@@ -723,10 +756,10 @@ export default function Dashboard() {
         </div>
 
         {/* Right Column: Unified Hotlist */}
-        <aside className="w-full lg:w-[340px] lg:shrink-0 space-y-6">
-          <div className="glass-premium rounded-3xl soft-glow min-h-[600px] bg-white/30 border border-white/50 relative">
+        <aside className="w-full lg:w-[340px] lg:shrink-0 flex flex-col">
+          <div className="glass-premium rounded-3xl soft-glow lg:h-0 lg:min-h-full bg-white/30 border border-white/50 relative flex flex-col overflow-hidden">
             {/* Task Switcher - Integrated with top */}
-            <div className="flex px-4 gap-3 bg-white/10 border-b border-white/20 h-16 items-center w-full rounded-t-3xl">
+            <div className="flex px-4 gap-3 bg-white/10 border-b border-white/20 h-16 items-center w-full rounded-t-3xl mt-2">
               <div className="flex-1">
                 <Button 
                   onClick={() => setTaskFilter('today')}
@@ -772,33 +805,33 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <div className="px-6 space-y-6">
-              {taskFilter === 'upcoming' && (
-                <div className="flex items-center justify-center gap-6 py-2 border-b border-slate-100/50">
-                  {[
-                    { label: '7 ngày', value: '7' },
-                    { label: '1 tháng', value: '30' },
-                    { label: 'Tất cả', value: 'all' }
-                  ].map((btn) => (
-                    <button
-                      key={btn.value}
-                      onClick={() => setUpcomingRange(btn.value as any)}
-                      className={cn(
-                        "text-[10px] font-black uppercase tracking-widest transition-all duration-300 relative py-1",
-                        upcomingRange === btn.value 
-                          ? "text-primary" 
-                          : "text-slate-400 hover:text-slate-600"
-                      )}
-                    >
-                      {btn.label}
-                      {upcomingRange === btn.value && (
-                        <span className="absolute bottom-0 left-0 w-full h-0.5 bg-primary rounded-full transition-all duration-300" />
-                      )}
-                    </button>
-                  ))}
-                </div>
-              )}
+            {taskFilter === 'upcoming' && (
+              <div className="flex items-center justify-center gap-6 py-4 border-b border-white/10 mx-6">
+                {[
+                  { label: '7 ngày', value: '7' },
+                  { label: '1 tháng', value: '30' },
+                  { label: 'Tất cả', value: 'all' }
+                ].map((btn) => (
+                  <button
+                    key={btn.value}
+                    onClick={() => setUpcomingRange(btn.value as any)}
+                    className={cn(
+                      "text-[10px] font-black uppercase tracking-widest transition-all duration-300 relative py-1",
+                      upcomingRange === btn.value 
+                        ? "text-primary" 
+                        : "text-slate-400 hover:text-slate-600"
+                    )}
+                  >
+                    {btn.label}
+                    {upcomingRange === btn.value && (
+                      <span className="absolute bottom-0 left-0 w-full h-0.5 bg-primary rounded-full transition-all duration-300" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
 
+            <div className="px-6 py-6 flex-1 overflow-y-auto custom-scrollbar">
               <TaskHotlist 
                 tasks={allTasks} 
                 filter={taskFilter as 'today' | 'upcoming'} 
@@ -808,6 +841,18 @@ export default function Dashboard() {
             </div>
           </div>
         </aside>
+      </div>
+
+      {/* Full-width Analytics Footer */}
+      <div className="mt-8 pt-8 border-t border-white/40">
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 lg:items-stretch min-w-0">
+          <div className="lg:col-span-3 h-full min-w-0">
+            <TaskCompletionHeatmap tasks={activeContextTasks} className="h-full w-full" />
+          </div>
+          <div className="lg:col-span-2 h-full min-w-0">
+            <TaskStatusDonut tasks={activeContextTasks} className="h-full w-full" />
+          </div>
+        </div>
       </div>
 
       {editingProject && (
@@ -834,6 +879,19 @@ export default function Dashboard() {
           isClone={true}
         />
       )}
+      
+      <GlobalSearch 
+        projects={projects} 
+        tasks={allTasks}
+        open={isGlobalSearchOpen}
+        onOpenChange={setIsGlobalSearchOpen}
+        onProjectClick={(p) => {
+          setSearchQuery(p.name)
+        }}
+        onTaskClick={(t) => {
+          setSearchQuery(t.name)
+        }}
+      />
     </div>
   )
 }

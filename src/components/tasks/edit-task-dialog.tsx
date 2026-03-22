@@ -304,7 +304,7 @@ export function EditTaskDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[550px] rounded-[2.5rem] border-none glass-premium p-0">
+      <DialogContent className="sm:max-w-[550px] rounded-[2.5rem] border-none glass-premium p-0 flex flex-col max-h-[90vh]">
         <div className="p-8 pb-0 text-center sm:text-left">
           <DialogHeader className="space-y-3">
             {isEditing && (
@@ -336,7 +336,7 @@ export function EditTaskDialog({
           </DialogHeader>
         </div>
 
-        <div className="overflow-y-auto max-h-[60vh] px-8 py-6 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto px-8 py-6 custom-scrollbar">
           {isEditing ? (
             <form id="edit-task-form" onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">

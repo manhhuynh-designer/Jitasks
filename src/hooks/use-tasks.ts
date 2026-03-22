@@ -16,6 +16,7 @@ export type Task = {
   category_id: string | null
   task_group_id: string | null
   task_time: number | null
+  updated_at: string
   projects?: { name: string, status: string }
   assignees?: { full_name: string }
   project_categories?: { name: string }

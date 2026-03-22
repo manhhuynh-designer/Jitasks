@@ -186,7 +186,7 @@ export function NewTaskDialog({
           )
         }
       />
-      <DialogContent className="sm:max-w-[550px] rounded-[2.5rem] border-none glass-premium p-0">
+      <DialogContent className="sm:max-w-[550px] rounded-[2.5rem] border-none glass-premium p-0 flex flex-col max-h-[90vh]">
         <div className="p-8 pb-0 text-center sm:text-left">
           <DialogHeader className="space-y-3">
             <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center mb-2 mx-auto sm:mx-0">
@@ -204,7 +204,7 @@ export function NewTaskDialog({
           </DialogHeader>
         </div>
 
-        <div className="overflow-y-auto max-h-[60vh] px-8 py-6 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto px-8 py-6 custom-scrollbar">
           <form id="new-task-form" onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
               <Label htmlFor="t-name" className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">Tên Task</Label>
@@ -347,7 +347,7 @@ export function NewTaskDialog({
                       type="button"
                       onClick={() => setCategoryId(c.id)}
                       className={cn(
-                        "flex items-center gap-1.5 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border outline-none",
+                        "flex items-center gap-1.5 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-slate-200 outline-none",
                         categoryId === c.id 
                           ? `text-white border-transparent shadow-lg ${c.color}`
                           : "bg-white/60 text-slate-400 border-white hover:bg-white"
@@ -363,7 +363,7 @@ export function NewTaskDialog({
                 <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
                   <Label className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">Nhóm Task</Label>
                   <Select value={taskGroupId || "none"} onValueChange={(val) => setTaskGroupId(val === "none" ? null : val)}>
-                    <SelectTrigger className="h-11 rounded-xl bg-white/90 border-none hover:bg-white/100 px-4 text-xs font-medium">
+                    <SelectTrigger className="h-11 rounded-xl bg-white/90 border-none hover:bg-white/100 px-4 text-xs font-medium focus:ring-0">
                       <SelectValue placeholder="Chọn nhóm task">
                         {taskGroupId && taskGroupId !== "none" ? taskGroups.find((g: any) => g.id === taskGroupId)?.name : "Chọn nhóm task"}
                       </SelectValue>
@@ -382,7 +382,7 @@ export function NewTaskDialog({
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="space-y-3">
                   <Label className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">Trạng thái</Label>
                   <div className="flex flex-wrap gap-2">
@@ -394,7 +394,7 @@ export function NewTaskDialog({
                           type="button"
                           onClick={() => setStatus(s.value as any)}
                           className={cn(
-                            "flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all border outline-none",
+                            "flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all border border-slate-200 outline-none",
                             status === s.value 
                               ? `text-white ${s.color} border-transparent shadow-md`
                               : "bg-white/60 text-slate-500 border-white hover:bg-white"
@@ -417,7 +417,7 @@ export function NewTaskDialog({
                         type="button"
                         onClick={() => setPriority(p.value as any)}
                         className={cn(
-                          "flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border outline-none",
+                          "flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-slate-200 outline-none",
                           priority === p.value 
                             ? `text-white ${p.color} border-transparent shadow-lg active:scale-95`
                             : "bg-white/60 text-slate-400 border-white hover:bg-white"

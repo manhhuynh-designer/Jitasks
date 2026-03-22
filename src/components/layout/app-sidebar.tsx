@@ -9,6 +9,7 @@ import {
   Settings,
   LogOut,
   Plus,
+  Mail,
   ListTree,
   ChevronDown,
   ChevronRight
@@ -118,6 +119,11 @@ export function AppSidebar() {
           <Plus className="h-4 w-4" />
         </Button>
       } />
+    },
+    {
+      title: 'Email Mẫu',
+      url: '/email-templates',
+      icon: Mail,
     },
   ]
 

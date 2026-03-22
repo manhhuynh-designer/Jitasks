@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Button } from '@/components/ui/button'
 import { EditTaskDialog } from '@/components/tasks/edit-task-dialog'
+import { TaskStatusHeatmap } from '@/components/dashboard/task-status-heatmap'
 
 interface ProjectCardProps {
   project: Project
@@ -100,19 +101,6 @@ export function ProjectCard({
               </div>
             </div>
 
-            {/* Project Progress Bar */}
-            <div className="mt-6 mb-2">
-              <div className="flex justify-between items-center mb-2 px-0.5">
-                <span className="text-[10px] font-medium text-slate-400 uppercase tracking-widest">Tiến độ dự án</span>
-                <span className="text-[11px] font-medium text-primary">{progress}%</span>
-              </div>
-              <div className="h-2 w-full bg-slate-100/80 rounded-full overflow-hidden border border-white/50 relative">
-                <div 
-                  className="h-full bg-primary rounded-full transition-all duration-1000 ease-out absolute top-0 left-0" 
-                  style={{ width: `${progress}%` }} 
-                />
-              </div>
-            </div>
           </CardHeader>
         </Link>
         <CardContent className="p-6 pt-5 bg-white/20">
@@ -175,6 +163,9 @@ export function ProjectCard({
                 </div>
               )}
             </div>
+
+            {/* ✅ NEW: Task Status Heatmap */}
+            <TaskStatusHeatmap tasks={projectTasks} />
           </CardContent>
         </Card>
 

@@ -66,3 +66,6 @@ issue.md
 # Agent generated runtime data
 .agents/sessions/
 .agents/logs/
+
+# Sample data
+src/components/email-templates/email-templates-sample.json

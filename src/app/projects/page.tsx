@@ -11,7 +11,12 @@ import { useState, useMemo, useEffect } from 'react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Search, X, ArrowUpDown, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Card } from '@/components/ui/card'
+import { Search, X, ArrowUpDown, ChevronLeft, ChevronRight, LayoutGrid, Info } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { StatsBar } from '@/components/dashboard/stats-bar'
+import { EditTaskDialog } from '@/components/tasks/edit-task-dialog'
+import { Task } from '@/hooks/use-tasks'
 
 export default function ProjectsPage() {
   const searchParams = useSearchParams()
@@ -19,7 +24,7 @@ export default function ProjectsPage() {
   const supplierId = searchParams.get('supplier')
   const assigneeId = searchParams.get('assignee')
   
-  const { projects, loading, refresh } = useProjects(status || undefined)
+  const { projects, loading, refresh } = useProjects()
   const { tasks } = useTasks()
 
   const [searchQuery, setSearchQuery] = useState('')
@@ -27,6 +32,8 @@ export default function ProjectsPage() {
   const [itemsPerPage, setItemsPerPage] = useState(12)
   const [currentPage, setCurrentPage] = useState(1)
   const [categories, setCategories] = useState<{id: string, name: string}[]>([])
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null)
+  const [isTaskDetailOpen, setIsTaskDetailOpen] = useState(false)
 
   useEffect(() => {
     const fetchCats = async () => {
@@ -39,26 +46,40 @@ export default function ProjectsPage() {
   const filteredProjects = useMemo(() => {
     let result = [...projects]
     
+    // 1. URL Status/Stage Filter
+    if (status) {
+      result = result.filter(p => p.status === status)
+    }
+
+    // 2. Search Query Filter
     if (searchQuery) {
       result = result.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()))
     }
 
+    // 3. Supplier Filter
     if (supplierId) {
       result = result.filter(p => (p.suppliers?.id === supplierId || p.supplier_id === supplierId))
     }
 
+    // 4. Assignee Filter
     if (assigneeId) {
       result = result.filter(p => tasks.some(t => t.project_id === p.id && t.assignee_id === assigneeId))
     }
     
+    // Sort
     result.sort((a, b) => {
-      const dateA = new Date(a.created_at).getTime()
-      const dateB = new Date(b.created_at).getTime()
+      const dateA = new Date(a.created_at || 0).getTime()
+      const dateB = new Date(b.created_at || 0).getTime()
       return sortOrder === 'desc' ? dateB - dateA : dateA - dateB
     })
     
     return result
-  }, [projects, searchQuery, sortOrder])
+  }, [projects, status, searchQuery, sortOrder, supplierId, assigneeId, tasks])
+
+  const currentSelectionTasks = useMemo(() => {
+    const projectIds = new Set(filteredProjects.map(p => p.id))
+    return tasks.filter(t => projectIds.has(t.project_id))
+  }, [filteredProjects, tasks])
 
   const totalPages = Math.ceil(filteredProjects.length / itemsPerPage)
   const paginatedProjects = filteredProjects.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
@@ -82,6 +103,17 @@ export default function ProjectsPage() {
         </div>
         <NewProjectDialog onProjectCreated={refresh} />
       </div>
+
+      <StatsBar
+        projects={filteredProjects}
+        tasks={tasks}
+        selectionTasks={currentSelectionTasks}
+        onTaskClick={(task) => {
+          setSelectedTask(task)
+          setIsTaskDetailOpen(true)
+        }}
+        className="mb-8"
+      />
 
       <div className="flex flex-col sm:flex-row gap-4 items-center justify-between bg-white/40 glass-premium p-3 rounded-3xl border border-white/60 mb-6 shadow-sm">
         <div className="relative w-full sm:w-[350px]">
@@ -114,7 +146,7 @@ export default function ProjectsPage() {
         </div>
       </div>
 
-      <ScrollArea className="h-[calc(100vh-280px)]">
+      <ScrollArea className="h-[calc(100vh-420px)]">
         {loading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
             {[1, 2, 3, 4, 5, 6].map(i => (
@@ -181,6 +213,15 @@ export default function ProjectsPage() {
           </div>
         )}
       </ScrollArea>
+
+      {selectedTask && (
+        <EditTaskDialog
+          task={selectedTask}
+          open={isTaskDetailOpen}
+          onOpenChange={setIsTaskDetailOpen}
+          onTaskUpdated={refresh}
+        />
+      )}
     </div>
   )
 }

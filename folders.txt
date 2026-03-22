@@ -1,7 +1,0 @@
-Creating folder structure...
-- src/components/ui: Shadcn UI components
-- src/components/layout: Sidebar, Navbar, etc.
-- src/components/projects: Project-related components (Grid, Dashboard)
-- src/components/tasks: Task-related components (List, Calendar)
-- src/hooks: Custom hooks for Supabase data fetching
-- src/types: TypeScript interfaces

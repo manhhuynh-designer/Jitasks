@@ -67,6 +67,8 @@ import {
 import { Label } from '@/components/ui/label'
 
 import { EditTaskDialog } from '@/components/tasks/edit-task-dialog'
+import { AssigneeLoadPanel } from '@/components/analytics/assignee-load-panel'
+import { AllStagesGroupOverview } from '@/components/analytics/all-stages-group-overview'
 
 export default function ProjectDetail() {
   const { id } = useParams()
@@ -656,6 +658,17 @@ export default function ProjectDetail() {
                 </CardContent>
               </Card>
 
+              <AllStagesGroupOverview
+                categories={categories}
+                taskGroups={taskGroups}
+                tasks={tasks}
+                activeCategoryId={activeCategoryId}
+                onGroupClick={(groupId, categoryId) => {
+                  setActiveCategoryId(categoryId)
+                  setExpandedGroupId(groupId)
+                }}
+              />
+
               {/* Info Card */}
               <Card className="rounded-[2.5rem] border-none bg-white shadow-xl shadow-slate-200/50">
                 <CardHeader className="pb-2 px-8 pt-8">
@@ -667,6 +680,9 @@ export default function ProjectDetail() {
                   </p>
                 </CardContent>
               </Card>
+
+              {/* ✅ NEW: Assignee Panel — added after Description Card */}
+              <AssigneeLoadPanel tasks={tasks} />
            </div>
         </div>
       </div>

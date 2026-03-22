@@ -131,6 +131,8 @@ CREATE TABLE public.task_groups (
   id          UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   name        TEXT NOT NULL,
   category_id UUID REFERENCES public.project_categories(id) ON DELETE CASCADE,
+  start_date  TIMESTAMPTZ,              -- Added in Migration 001
+  end_date    TIMESTAMPTZ,                -- Added in Migration 001
   order_index INTEGER DEFAULT 0,
   created_by  UUID REFERENCES auth.users(id) DEFAULT auth.uid(),
   created_at  TIMESTAMPTZ DEFAULT NOW(),
@@ -147,6 +149,7 @@ CREATE TABLE public.projects (
   name        TEXT NOT NULL,
   description TEXT,
   status      public.project_status DEFAULT 'Sourcing',
+  cover_url   TEXT,                     -- Added in Migration 002
   color_code  TEXT,
   supplier_id UUID REFERENCES public.suppliers(id),
   created_by  UUID REFERENCES auth.users(id) DEFAULT auth.uid(),

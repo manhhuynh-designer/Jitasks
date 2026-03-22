@@ -12,8 +12,15 @@ export type Project = {
   color?: string
   color_code: string | null
   description: string | null
+  deleted_at: string | null
   cover_url?: string | null
   suppliers?: { id: string, name: string }
+  tasks?: Array<{ 
+    id: string
+    status: 'todo' | 'inprogress' | 'pending' | 'done'
+    priority: 'low' | 'medium' | 'high' | 'critical'
+    updated_at: string 
+  }>
 }
 
 export function useProjects(statusFilter?: string) {
@@ -24,7 +31,7 @@ export function useProjects(statusFilter?: string) {
     setLoading(true)
     let query = supabase
       .from('projects')
-      .select('*, suppliers(id, name)')
+      .select('*, suppliers(id, name), tasks(id, status, priority, updated_at)')
       .order('created_at', { ascending: false })
 
     if (statusFilter) {

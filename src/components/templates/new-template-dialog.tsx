@@ -158,7 +158,7 @@ export function NewTemplateDialog({
           </Button>
         )
       } />
-      <DialogContent className="sm:max-w-[550px] rounded-[2.5rem] border-none glass-premium p-0 overflow-hidden shadow-2xl">
+      <DialogContent className="sm:max-w-[550px] rounded-[2.5rem] border-none glass-premium p-0 flex flex-col max-h-[90vh] overflow-hidden shadow-2xl">
         <div className="p-8 pb-4 text-center sm:text-left">
           <DialogHeader className="space-y-3">
             <div className="h-14 w-14 rounded-2xl bg-amber-50 flex items-center justify-center mb-2 mx-auto sm:mx-0 shadow-sm ring-4 ring-amber-50/50">
@@ -173,7 +173,8 @@ export function NewTemplateDialog({
           </DialogHeader>
         </div>
 
-        <form onSubmit={handleSubmit} className="px-8 pb-8 space-y-6">
+        <div className="flex-1 overflow-y-auto px-8 py-6 custom-scrollbar">
+          <form id="new-template-form" onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-2">
             <Label htmlFor="t-name" className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">Tên Task Template</Label>
             <Input 
@@ -259,12 +260,16 @@ export function NewTemplateDialog({
             </div>
           </div>
 
-          <DialogFooter className="pt-4">
-            <Button type="submit" disabled={loading} className="w-full rounded-[2rem] h-14 font-black text-base shadow-xl shadow-primary/20 bg-primary text-white hover:bg-primary/95 transition-all hover:scale-[1.02] active:scale-[0.98]">
+          </form>
+        </div>
+
+        <div className="p-8 pt-2">
+          <DialogFooter>
+            <Button form="new-template-form" type="submit" disabled={loading} className="w-full rounded-[2rem] h-14 font-black text-base shadow-xl shadow-primary/20 bg-primary text-white hover:bg-primary/95 transition-all hover:scale-[1.02] active:scale-[0.98]">
               {loading ? 'Đang lưu...' : (template ? 'Cập nhật Template' : 'Lưu Template')}
             </Button>
           </DialogFooter>
-        </form>
+        </div>
       </DialogContent>
     </Dialog>
   )

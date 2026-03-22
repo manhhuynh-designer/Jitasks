@@ -161,130 +161,137 @@ export function EditProjectDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] rounded-[2.5rem] border-none glass-premium p-8">
-        <DialogHeader className="space-y-3">
-          <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center mb-2">
-            {isClone ? <Copy className="h-6 w-6 text-primary"></Copy> : <Pencil className="h-6 w-6 text-primary"></Pencil>}
-          </div>
-          <DialogTitle className="text-2xl font-black text-slate-800 tracking-tight">{isClone ? 'Nhân bản Project' : 'Sửa Project'}</DialogTitle>
-          <DialogDescription className="text-muted-foreground font-medium">
-            {isClone ? 'Chỉnh sửa thông tin cho bản sao của project.' : 'Cập nhật thông tin chi tiết cho project của bạn.'}
-          </DialogDescription>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-6 pt-6">
-          <div className="space-y-2">
-            <Label htmlFor="p-name" className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">Tên Project</Label>
-            <Input 
-              id="p-name" 
-              placeholder="Ví dụ: Thu mua Tết 2026" 
-              value={name}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
-              required
-              className="rounded-2xl h-12 bg-white/90 border-none focus-visible:ring-primary/20 font-medium"
-            />
-          </div>
+      <DialogContent className="sm:max-w-[500px] rounded-[2.5rem] border-none glass-premium p-0 flex flex-col max-h-[90vh]">
+        <div className="p-8 pb-0">
+          <DialogHeader className="space-y-3">
+            <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center mb-2">
+              {isClone ? <Copy className="h-6 w-6 text-primary"></Copy> : <Pencil className="h-6 w-6 text-primary"></Pencil>}
+            </div>
+            <DialogTitle className="text-2xl font-black text-slate-800 tracking-tight">{isClone ? 'Nhân bản Project' : 'Sửa Project'}</DialogTitle>
+            <DialogDescription className="text-muted-foreground font-medium">
+              {isClone ? 'Chỉnh sửa thông tin cho bản sao của project.' : 'Cập nhật thông tin chi tiết cho project của bạn.'}
+            </DialogDescription>
+          </DialogHeader>
+        </div>
 
-          <div className="space-y-2">
-            <Label className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">Ngày Project</Label>
-            <Popover>
-              <PopoverTrigger
+        <div className="flex-1 overflow-y-auto px-8 py-6 custom-scrollbar">
+          <form id="edit-project-form" onSubmit={handleSubmit} className="space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="p-name" className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">Tên Project</Label>
+              <Input 
+                id="p-name" 
+                placeholder="Ví dụ: Thu mua Tết 2026" 
+                value={name}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
+                required
+                className="rounded-2xl h-12 bg-white/90 border-none focus-visible:ring-primary/20 font-medium"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">Ngày Project</Label>
+              <Popover>
+                <PopoverTrigger
+                  render={
+                    <Button
+                      variant={"outline"}
+                      type="button"
+                      className={cn(
+                        "w-full h-12 justify-start text-left font-medium rounded-2xl bg-white/90 border-none hover:bg-white/100 px-4",
+                        !createdAt && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4 text-slate-400" />
+                      {createdAt ? format(createdAt, "dd/MM/yyyy") : <span>Chọn ngày</span>}
+                    </Button>
+                  }
+                />
+                <PopoverContent className="w-auto p-0 rounded-2xl border-none shadow-2xl" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={createdAt}
+                    onSelect={(date) => date && setCreatedAt(date)}
+                    initialFocus
+                    className="rounded-2xl"
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="p-desc" className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">Mô tả</Label>
+              <Textarea 
+                id="p-desc" 
+                placeholder="Nhập mô tả chi tiết..." 
+                value={description}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setDescription(e.target.value)}
+                className="rounded-2xl min-h-[80px] bg-white/90 border-none focus-visible:ring-primary/20 font-medium resize-none text-xs"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">Nhà cung cấp</Label>
+              <DropdownMenu>
+              <DropdownMenuTrigger
                 render={
-                  <Button
-                    variant={"outline"}
-                    type="button"
-                    className={cn(
-                      "w-full h-12 justify-start text-left font-medium rounded-2xl bg-white/90 border-none hover:bg-white/100 px-4",
-                      !createdAt && "text-muted-foreground"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4 text-slate-400" />
-                    {createdAt ? format(createdAt, "dd/MM/yyyy") : <span>Chọn ngày</span>}
+                  <Button variant="outline" type="button" className="w-full justify-between h-12 rounded-2xl bg-white/90 border-none hover:bg-white/100 px-4">
+                    <span className="flex items-center gap-2 overflow-hidden">
+                      <Building2 className="h-4 w-4 text-slate-400 shrink-0"></Building2>
+                      <span className="truncate">{selectedSupplier?.name || "Chọn nhà cung cấp"}</span>
+                    </span>
+                    <div className="h-4 w-4 text-slate-400 border-2 border-slate-400 rounded-full flex items-center justify-center text-[10px]">+</div>
                   </Button>
                 }
               />
-              <PopoverContent className="w-auto p-0 rounded-2xl border-none shadow-2xl" align="start">
-                <Calendar
-                  mode="single"
-                  selected={createdAt}
-                  onSelect={(date) => date && setCreatedAt(date)}
-                  initialFocus
-                  className="rounded-2xl"
-                />
-              </PopoverContent>
-            </Popover>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="p-desc" className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">Mô tả</Label>
-            <Textarea 
-              id="p-desc" 
-              placeholder="Nhập mô tả chi tiết..." 
-              value={description}
-              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setDescription(e.target.value)}
-              className="rounded-2xl min-h-[80px] bg-white/90 border-none focus-visible:ring-primary/20 font-medium resize-none text-xs"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">Nhà cung cấp</Label>
-            <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <Button variant="outline" type="button" className="w-full justify-between h-12 rounded-2xl bg-white/90 border-none hover:bg-white/100 px-4">
-                  <span className="flex items-center gap-2 overflow-hidden">
-                    <Building2 className="h-4 w-4 text-slate-400 shrink-0"></Building2>
-                    <span className="truncate">{selectedSupplier?.name || "Chọn nhà cung cấp"}</span>
-                  </span>
-                  <div className="h-4 w-4 text-slate-400 border-2 border-slate-400 rounded-full flex items-center justify-center text-[10px]">+</div>
-                </Button>
-              }
-            />
-              <DropdownMenuContent className="w-[300px] rounded-2xl border-none glass-premium shadow-2xl p-2 z-[100]">
-                {suppliers.length > 0 ? (
-                  suppliers.map(s => (
-                    <DropdownMenuItem 
-                      key={s.id} 
-                      onClick={() => setSupplierId(s.id)}
-                      className="rounded-xl px-4 py-2 cursor-pointer focus:bg-primary/10 focus:text-primary font-medium"
-                    >
-                      {s.name}
-                    </DropdownMenuItem>
-                  ))
-                ) : (
-                  <div className="px-4 py-2 text-sm text-slate-500 italic">Chưa có supplier nào</div>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-
-          <div className="space-y-3">
-            <Label className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">Trạng thái</Label>
-            <div className="grid grid-cols-2 gap-2">
-              {categories.map((opt, idx) => (
-                <button
-                  key={opt.id}
-                  type="button"
-                  onClick={() => setStatus(opt.name as any)}
-                  className={cn(
-                    "flex items-center justify-between px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border-2",
-                    status === opt.name 
-                      ? "bg-primary/20 border-primary text-primary shadow-sm" 
-                      : "bg-white/90 border-transparent text-slate-400 hover:bg-white/100"
+                <DropdownMenuContent className="w-[300px] rounded-2xl border-none glass-premium shadow-2xl p-2 z-[100]">
+                  {suppliers.length > 0 ? (
+                    suppliers.map(s => (
+                      <DropdownMenuItem 
+                        key={s.id} 
+                        onClick={() => setSupplierId(s.id)}
+                        className="rounded-xl px-4 py-2 cursor-pointer focus:bg-primary/10 focus:text-primary font-medium"
+                      >
+                        {s.name}
+                      </DropdownMenuItem>
+                    ))
+                  ) : (
+                    <div className="px-4 py-2 text-sm text-slate-500 italic">Chưa có supplier nào</div>
                   )}
-                >
-                  {idx + 1}. {opt.name}
-                  {status === opt.name && <Check className="h-3 w-3 shadow-lg"></Check>}
-                </button>
-              ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
-          </div>
 
-          <DialogFooter className="pt-6">
-            <Button type="submit" disabled={loading} className="w-full rounded-2xl h-14 font-black text-lg shadow-lg shadow-primary/20 bg-primary text-white hover:bg-primary/90 transition-all active:scale-[0.98]">
+            <div className="space-y-3">
+              <Label className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">Trạng thái</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {categories.map((opt, idx) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setStatus(opt.name as any)}
+                    className={cn(
+                      "flex items-center justify-between px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border-2",
+                      status === opt.name 
+                        ? "bg-primary/20 border-primary text-primary shadow-sm" 
+                        : "bg-white/90 border-transparent text-slate-400 hover:bg-white/100"
+                    )}
+                  >
+                    {idx + 1}. {opt.name}
+                    {status === opt.name && <Check className="h-3 w-3 shadow-lg"></Check>}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </form>
+        </div>
+
+        <div className="p-8 pt-2">
+          <DialogFooter>
+            <Button form="edit-project-form" type="submit" disabled={loading} className="w-full rounded-2xl h-14 font-black text-lg shadow-lg shadow-primary/20 bg-primary text-white hover:bg-primary/90 transition-all active:scale-[0.98]">
               {loading ? (isClone ? 'Đang tạo...' : 'Đang cập nhật...') : (isClone ? 'Tạo bản sao' : 'Lưu thay đổi')}
             </Button>
           </DialogFooter>
-        </form>
+        </div>
       </DialogContent>
     </Dialog>
   )
