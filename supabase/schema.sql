@@ -1,10 +1,9 @@
--- SUPABASE SCHEMA v2.2: Production-Ready, Robust, Scalable
+-- SUPABASE SCHEMA v2.3: Production-Ready, Robust, Scalable
 -- (JITasks Core Infrastructure - Production Grade)
--- Changelog v2.2:
---   [FIX] RLS policies tách theo operation (SELECT/INSERT/UPDATE/DELETE)
---         để soft delete hoạt động đúng trên projects, tasks, task_comments
---   [FIX] audit_log: thêm policy chặn direct INSERT từ client
---   [FIX] task_attachments: thêm deleted_at cho nhất quán với các bảng khác
+-- Changelog v2.3:
+--   [FEAT] Thêm hệ thống provisioning default data cho user mới
+--   [FIX] Cập nhật RLS policies cho task_groups và categories để hỗ trợ copy-on-create
+--   [FIX] Đồng nhất tên cột deadline trong task_groups
 
 -- ==========================================
 -- 0. CLEAN SLATE (Run this block first on a fresh DB)
@@ -38,9 +37,67 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Provision default data for new users
+CREATE OR REPLACE FUNCTION public.provision_user_defaults(p_user_id UUID)
+RETURNS VOID AS $$
+DECLARE
+    v_cat_sourcing_id UUID;
+    v_cat_active_id   UUID;
+    v_cat_onhold_id   UUID;
+    v_cat_archive_id  UUID;
+    v_group_id        UUID;
+BEGIN
+    -- Only provision if the user has no categories yet
+    IF EXISTS (SELECT 1 FROM public.project_categories WHERE created_by = p_user_id) THEN
+        RETURN;
+    END IF;
+
+    -- A. Insert Default Categories (Stages)
+    INSERT INTO public.project_categories (name, color, order_index, created_by)
+    VALUES ('Sourcing', 'bg-blue-500', 0, p_user_id) RETURNING id INTO v_cat_sourcing_id;
+    
+    INSERT INTO public.project_categories (name, color, order_index, created_by)
+    VALUES ('Active', 'bg-emerald-500', 1, p_user_id) RETURNING id INTO v_cat_active_id;
+    
+    INSERT INTO public.project_categories (name, color, order_index, created_by)
+    VALUES ('On Hold', 'bg-amber-500', 2, p_user_id) RETURNING id INTO v_cat_onhold_id;
+    
+    INSERT INTO public.project_categories (name, color, order_index, created_by)
+    VALUES ('Archive', 'bg-slate-500', 3, p_user_id) RETURNING id INTO v_cat_archive_id;
+
+    -- B. Sourcing Groups & Templates
+    INSERT INTO public.task_groups (name, category_id, order_index, created_by) 
+    VALUES ('Tiềm năng', v_cat_sourcing_id, 0, p_user_id) RETURNING id INTO v_group_id;
+    INSERT INTO public.task_templates (project_status, task_name, category_id, task_group_id, default_priority, created_by)
+    VALUES ('Sourcing', 'Đàm phán điều khoản hợp đồng', v_cat_sourcing_id, v_group_id, 'critical', p_user_id);
+
+    INSERT INTO public.task_groups (name, category_id, order_index, created_by) 
+    VALUES ('Đang liên hệ', v_cat_sourcing_id, 1, p_user_id) RETURNING id INTO v_group_id;
+    INSERT INTO public.task_templates (project_status, task_name, category_id, task_group_id, default_priority, created_by)
+    VALUES ('Sourcing', 'Liên hệ báo giá NCC mới', v_cat_sourcing_id, v_group_id, 'high', p_user_id);
+
+    INSERT INTO public.task_groups (name, category_id, order_index, created_by) 
+    VALUES ('Đã chốt', v_cat_sourcing_id, 2, p_user_id) RETURNING id INTO v_group_id;
+    INSERT INTO public.task_templates (project_status, task_name, category_id, task_group_id, default_priority, created_by)
+    VALUES ('Sourcing', 'Kiểm tra mẫu sản phẩm', v_cat_sourcing_id, v_group_id, 'medium', p_user_id);
+
+    -- C. Active Groups & Templates
+    INSERT INTO public.task_groups (name, category_id, order_index, created_by) 
+    VALUES ('Đang đăng', v_cat_active_id, 0, p_user_id) RETURNING id INTO v_group_id;
+    INSERT INTO public.task_templates (project_status, task_name, category_id, task_group_id, default_priority, created_by)
+    VALUES ('Active', 'Viết nội dung mô tả sản phẩm (SEO)', v_cat_active_id, v_group_id, 'medium', p_user_id);
+
+    -- D. On Hold / Archive Groups
+    INSERT INTO public.task_groups (name, category_id, order_index, created_by) VALUES
+    ('Đang giao', v_cat_onhold_id, 0, p_user_id),
+    ('Đã nhận', v_cat_onhold_id, 1, p_user_id),
+    ('Hoàn tất', v_cat_archive_id, 0, p_user_id),
+    ('Hủy bỏ', v_cat_archive_id, 1, p_user_id);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 -- ==========================================
 -- 3. AUDIT LOG TABLE & FUNCTION
--- (Defined before other tables so triggers can reference it)
 -- ==========================================
 
 CREATE TABLE public.audit_log (
@@ -131,12 +188,29 @@ CREATE TABLE public.task_groups (
   id          UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   name        TEXT NOT NULL,
   category_id UUID REFERENCES public.project_categories(id) ON DELETE CASCADE,
-  start_date  TIMESTAMPTZ,              -- Added in Migration 001
-  end_date    TIMESTAMPTZ,                -- Added in Migration 001
+  project_id  UUID REFERENCES public.projects(id) ON DELETE CASCADE,
+  start_date  TIMESTAMPTZ,
+  deadline    TIMESTAMPTZ,
   order_index INTEGER DEFAULT 0,
   created_by  UUID REFERENCES auth.users(id) DEFAULT auth.uid(),
   created_at  TIMESTAMPTZ DEFAULT NOW(),
   updated_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Email Templates
+CREATE TABLE public.email_templates (
+  id             UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  title          TEXT NOT NULL,
+  subject        TEXT NOT NULL,
+  body           TEXT NOT NULL,
+  recipient_type TEXT CHECK (recipient_type IN ('supplier', 'internal', 'both')),
+  tags           TEXT[] DEFAULT '{}',
+  use_count      INTEGER DEFAULT 0,
+  stage          TEXT,
+  created_by     UUID REFERENCES auth.users(id) DEFAULT auth.uid(),
+  created_at     TIMESTAMPTZ DEFAULT NOW(),
+  updated_at     TIMESTAMPTZ DEFAULT NOW(),
+  deleted_at     TIMESTAMPTZ DEFAULT NULL
 );
 
 -- ==========================================
@@ -149,7 +223,7 @@ CREATE TABLE public.projects (
   name        TEXT NOT NULL,
   description TEXT,
   status      public.project_status DEFAULT 'Sourcing',
-  cover_url   TEXT,                     -- Added in Migration 002
+  cover_url   TEXT,
   color_code  TEXT,
   supplier_id UUID REFERENCES public.suppliers(id),
   created_by  UUID REFERENCES auth.users(id) DEFAULT auth.uid(),
@@ -168,8 +242,8 @@ CREATE TABLE public.tasks (
   description   TEXT,
   start_date    TIMESTAMPTZ,
   deadline      TIMESTAMPTZ,
-  task_time     INTEGER DEFAULT 0,        -- Stored in minutes
-  order_index   INTEGER DEFAULT 0,        -- For drag-and-drop ordering
+  task_time     INTEGER DEFAULT 0,
+  order_index   INTEGER DEFAULT 0,
   status        public.task_status   DEFAULT 'todo',
   priority      public.task_priority DEFAULT 'medium',
   assignee_id   UUID REFERENCES public.assignees(id),
@@ -207,7 +281,6 @@ CREATE TABLE public.task_comments (
 );
 
 -- Task Attachments
--- [FIX v2.2] Thêm deleted_at để nhất quán với task_comments
 CREATE TABLE public.task_attachments (
   id         UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   task_id    UUID NOT NULL REFERENCES public.tasks(id) ON DELETE CASCADE,
@@ -217,301 +290,109 @@ CREATE TABLE public.task_attachments (
   created_by UUID NOT NULL REFERENCES auth.users(id),
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
-  deleted_at TIMESTAMPTZ DEFAULT NULL    -- [FIX v2.2]
+  deleted_at TIMESTAMPTZ DEFAULT NULL
 );
 
 -- ==========================================
 -- 7. PERFORMANCE INDEXES
 -- ==========================================
 
--- Tasks
-CREATE INDEX idx_tasks_project_id   ON public.tasks(project_id);
-CREATE INDEX idx_tasks_assignee_id  ON public.tasks(assignee_id);
-CREATE INDEX idx_tasks_task_group_id ON public.tasks(task_group_id);
-CREATE INDEX idx_tasks_status       ON public.tasks(status);
-CREATE INDEX idx_tasks_deadline     ON public.tasks(deadline);
-CREATE INDEX idx_tasks_active       ON public.tasks(deleted_at) WHERE deleted_at IS NULL;
-
--- Projects
-CREATE INDEX idx_projects_supplier_id ON public.projects(supplier_id);
-CREATE INDEX idx_projects_status      ON public.projects(status);
-CREATE INDEX idx_projects_active      ON public.projects(deleted_at) WHERE deleted_at IS NULL;
-
--- Metadata
-CREATE INDEX idx_task_groups_category_id      ON public.task_groups(category_id);
-CREATE INDEX idx_task_comments_task_id        ON public.task_comments(task_id);
-CREATE INDEX idx_task_attachments_task_id     ON public.task_attachments(task_id);
+CREATE INDEX idx_tasks_project_id      ON public.tasks(project_id);
+CREATE INDEX idx_tasks_assignee_id     ON public.tasks(assignee_id);
+CREATE INDEX idx_tasks_task_group_id  ON public.tasks(task_group_id);
+CREATE INDEX idx_tasks_status          ON public.tasks(status);
+CREATE INDEX idx_tasks_active          ON public.tasks(deleted_at) WHERE deleted_at IS NULL;
+CREATE INDEX idx_projects_active       ON public.projects(deleted_at) WHERE deleted_at IS NULL;
+CREATE INDEX idx_task_groups_project_id ON public.task_groups(project_id);
 
 -- ==========================================
 -- 8. ROW LEVEL SECURITY
 -- ==========================================
 
-ALTER TABLE public.profiles          ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.suppliers         ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.assignees         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.profiles           ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.suppliers          ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.assignees          ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.project_categories ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.task_groups       ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.projects          ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.tasks             ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.task_templates    ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.task_comments     ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.task_attachments  ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.audit_log         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.task_groups        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.projects           ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.tasks              ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.task_templates     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.task_comments      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.task_attachments   ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.email_templates    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.audit_log          ENABLE ROW LEVEL SECURITY;
 
--- ---- Shared read (categories & groups) ----
-CREATE POLICY "categories_read_all"   ON public.project_categories FOR SELECT TO authenticated USING (true);
-CREATE POLICY "task_groups_read_all"  ON public.task_groups         FOR SELECT TO authenticated USING (true);
+-- Profiles: Own isolation
+CREATE POLICY "profiles_isolation" ON public.profiles FOR ALL TO authenticated USING (id = auth.uid()) WITH CHECK (id = auth.uid());
 
--- ---- Simple isolation (no soft delete) ----
-CREATE POLICY "profiles_isolation"   ON public.profiles        FOR ALL TO authenticated USING (id = auth.uid())             WITH CHECK (id = auth.uid());
-CREATE POLICY "suppliers_isolation"  ON public.suppliers       FOR ALL TO authenticated USING (created_by = auth.uid())     WITH CHECK (created_by = auth.uid());
-CREATE POLICY "assignees_isolation"  ON public.assignees       FOR ALL TO authenticated USING (created_by = auth.uid())     WITH CHECK (created_by = auth.uid());
-CREATE POLICY "templates_isolation"  ON public.task_templates  FOR ALL TO authenticated USING (created_by = auth.uid())     WITH CHECK (created_by = auth.uid());
-CREATE POLICY "categories_manage_own" ON public.project_categories FOR ALL TO authenticated USING (created_by = auth.uid()) WITH CHECK (created_by = auth.uid());
-CREATE POLICY "task_groups_manage_own" ON public.task_groups   FOR ALL TO authenticated USING (created_by = auth.uid())     WITH CHECK (created_by = auth.uid());
+-- Categories: Own only
+CREATE POLICY "categories_select" ON public.project_categories FOR SELECT TO authenticated USING (created_by = auth.uid());
+CREATE POLICY "categories_insert" ON public.project_categories FOR INSERT TO authenticated WITH CHECK (created_by = auth.uid());
+CREATE POLICY "categories_update" ON public.project_categories FOR UPDATE TO authenticated USING (created_by = auth.uid()) WITH CHECK (created_by = auth.uid());
+CREATE POLICY "categories_delete" ON public.project_categories FOR DELETE TO authenticated USING (created_by = auth.uid());
 
--- ---- audit_log ----
--- SELECT: chỉ xem log của chính mình
+-- Task Groups: Own or Project Owner
+CREATE POLICY "task_groups_select" ON public.task_groups FOR SELECT TO authenticated
+  USING (created_by = auth.uid() OR (project_id IS NOT NULL AND EXISTS (SELECT 1 FROM public.projects WHERE id = project_id AND created_by = auth.uid())));
+CREATE POLICY "task_groups_insert" ON public.task_groups FOR INSERT TO authenticated
+  WITH CHECK (created_by = auth.uid() OR (project_id IS NOT NULL AND EXISTS (SELECT 1 FROM public.projects WHERE id = project_id AND created_by = auth.uid())));
+CREATE POLICY "task_groups_update" ON public.task_groups FOR UPDATE TO authenticated
+  USING (created_by = auth.uid() OR (project_id IS NOT NULL AND EXISTS (SELECT 1 FROM public.projects WHERE id = project_id AND created_by = auth.uid())))
+  WITH CHECK (created_by = auth.uid() OR (project_id IS NOT NULL AND EXISTS (SELECT 1 FROM public.projects WHERE id = project_id AND created_by = auth.uid())));
+CREATE POLICY "task_groups_delete" ON public.task_groups FOR DELETE TO authenticated
+  USING (created_by = auth.uid() OR (project_id IS NOT NULL AND EXISTS (SELECT 1 FROM public.projects WHERE id = project_id AND created_by = auth.uid())));
+
+-- Projects: Creator based
+CREATE POLICY "projects_select" ON public.projects FOR SELECT TO authenticated USING (created_by = auth.uid() AND deleted_at IS NULL);
+CREATE POLICY "projects_insert" ON public.projects FOR INSERT TO authenticated WITH CHECK (created_by = auth.uid());
+CREATE POLICY "projects_update" ON public.projects FOR UPDATE TO authenticated USING (created_by = auth.uid()) WITH CHECK (created_by = auth.uid());
+CREATE POLICY "projects_delete" ON public.projects FOR DELETE TO authenticated USING (created_by = auth.uid());
+
+-- Tasks: Project owner based
+CREATE POLICY "tasks_select" ON public.tasks FOR SELECT TO authenticated USING (deleted_at IS NULL AND EXISTS (SELECT 1 FROM public.projects WHERE id = tasks.project_id AND created_by = auth.uid()));
+CREATE POLICY "tasks_insert" ON public.tasks FOR INSERT TO authenticated WITH CHECK (EXISTS (SELECT 1 FROM public.projects WHERE id = tasks.project_id AND created_by = auth.uid()));
+CREATE POLICY "tasks_update" ON public.tasks FOR UPDATE TO authenticated USING (EXISTS (SELECT 1 FROM public.projects WHERE id = tasks.project_id AND created_by = auth.uid())) WITH CHECK (EXISTS (SELECT 1 FROM public.projects WHERE id = tasks.project_id AND created_by = auth.uid()));
+CREATE POLICY "tasks_delete" ON public.tasks FOR DELETE TO authenticated USING (EXISTS (SELECT 1 FROM public.projects WHERE id = tasks.project_id AND created_by = auth.uid()));
+
+-- Task Templates: Own isolation
+CREATE POLICY "task_templates_select" ON public.task_templates FOR SELECT TO authenticated USING (created_by = auth.uid());
+CREATE POLICY "task_templates_manage" ON public.task_templates FOR ALL TO authenticated USING (created_by = auth.uid()) WITH CHECK (created_by = auth.uid());
+
+-- Audit Log
 CREATE POLICY "audit_log_select"        ON public.audit_log FOR SELECT TO authenticated USING (changed_by = auth.uid());
--- [FIX v2.2] INSERT: chặn hoàn toàn direct write từ client — chỉ trigger (SECURITY DEFINER) mới được ghi
 CREATE POLICY "audit_log_no_direct_write" ON public.audit_log FOR INSERT TO authenticated WITH CHECK (false);
-
--- ---- Projects (has soft delete) ----
--- [FIX v2.2] Tách thành 4 policy riêng để soft delete hoạt động đúng
--- SELECT: ẩn deleted rows
-CREATE POLICY "projects_select" ON public.projects FOR SELECT TO authenticated
-  USING (created_by = auth.uid() AND deleted_at IS NULL);
--- INSERT: chỉ cần owner check
-CREATE POLICY "projects_insert" ON public.projects FOR INSERT TO authenticated
-  WITH CHECK (created_by = auth.uid());
--- UPDATE: cho phép cập nhật kể cả set deleted_at (soft delete)
-CREATE POLICY "projects_update" ON public.projects FOR UPDATE TO authenticated
-  USING  (created_by = auth.uid())
-  WITH CHECK (created_by = auth.uid());
--- DELETE: hard delete nếu cần
-CREATE POLICY "projects_delete" ON public.projects FOR DELETE TO authenticated
-  USING (created_by = auth.uid());
-
--- ---- Tasks (has soft delete) ----
--- [FIX v2.2] Tách thành 4 policy riêng
--- SELECT: ẩn deleted rows, kiểm tra qua project owner
-CREATE POLICY "tasks_select" ON public.tasks FOR SELECT TO authenticated
-  USING (
-    deleted_at IS NULL
-    AND EXISTS (
-      SELECT 1 FROM public.projects
-      WHERE projects.id = tasks.project_id
-        AND projects.created_by = auth.uid()
-    )
-  );
--- INSERT
-CREATE POLICY "tasks_insert" ON public.tasks FOR INSERT TO authenticated
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM public.projects
-      WHERE projects.id = tasks.project_id
-        AND projects.created_by = auth.uid()
-    )
-  );
--- UPDATE: cho phép soft delete
-CREATE POLICY "tasks_update" ON public.tasks FOR UPDATE TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.projects
-      WHERE projects.id = tasks.project_id
-        AND projects.created_by = auth.uid()
-    )
-  )
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM public.projects
-      WHERE projects.id = tasks.project_id
-        AND projects.created_by = auth.uid()
-    )
-  );
--- DELETE
-CREATE POLICY "tasks_delete" ON public.tasks FOR DELETE TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.projects
-      WHERE projects.id = tasks.project_id
-        AND projects.created_by = auth.uid()
-    )
-  );
-
--- ---- Task Comments (has soft delete) ----
--- [FIX v2.2] Tách thành 4 policy riêng
-CREATE POLICY "comments_select" ON public.task_comments FOR SELECT TO authenticated
-  USING (
-    deleted_at IS NULL
-    AND EXISTS (
-      SELECT 1 FROM public.tasks t
-      JOIN public.projects p ON t.project_id = p.id
-      WHERE t.id = task_comments.task_id
-        AND p.created_by = auth.uid()
-    )
-  );
-CREATE POLICY "comments_insert" ON public.task_comments FOR INSERT TO authenticated
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM public.tasks t
-      JOIN public.projects p ON t.project_id = p.id
-      WHERE t.id = task_comments.task_id
-        AND p.created_by = auth.uid()
-    )
-  );
-CREATE POLICY "comments_update" ON public.task_comments FOR UPDATE TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.tasks t
-      JOIN public.projects p ON t.project_id = p.id
-      WHERE t.id = task_comments.task_id
-        AND p.created_by = auth.uid()
-    )
-  )
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM public.tasks t
-      JOIN public.projects p ON t.project_id = p.id
-      WHERE t.id = task_comments.task_id
-        AND p.created_by = auth.uid()
-    )
-  );
-CREATE POLICY "comments_delete" ON public.task_comments FOR DELETE TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.tasks t
-      JOIN public.projects p ON t.project_id = p.id
-      WHERE t.id = task_comments.task_id
-        AND p.created_by = auth.uid()
-    )
-  );
-
--- ---- Task Attachments ----
--- [FIX v2.2] Thêm soft delete filter ở SELECT
-CREATE POLICY "attachments_select" ON public.task_attachments FOR SELECT TO authenticated
-  USING (
-    deleted_at IS NULL
-    AND EXISTS (
-      SELECT 1 FROM public.tasks t
-      JOIN public.projects p ON t.project_id = p.id
-      WHERE t.id = task_attachments.task_id
-        AND p.created_by = auth.uid()
-    )
-  );
-CREATE POLICY "attachments_insert" ON public.task_attachments FOR INSERT TO authenticated
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM public.tasks t
-      JOIN public.projects p ON t.project_id = p.id
-      WHERE t.id = task_attachments.task_id
-        AND p.created_by = auth.uid()
-    )
-  );
-CREATE POLICY "attachments_update" ON public.task_attachments FOR UPDATE TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.tasks t
-      JOIN public.projects p ON t.project_id = p.id
-      WHERE t.id = task_attachments.task_id
-        AND p.created_by = auth.uid()
-    )
-  )
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM public.tasks t
-      JOIN public.projects p ON t.project_id = p.id
-      WHERE t.id = task_attachments.task_id
-        AND p.created_by = auth.uid()
-    )
-  );
-CREATE POLICY "attachments_delete" ON public.task_attachments FOR DELETE TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.tasks t
-      JOIN public.projects p ON t.project_id = p.id
-      WHERE t.id = task_attachments.task_id
-        AND p.created_by = auth.uid()
-    )
-  );
 
 -- ==========================================
 -- 9. AUTOMATION TRIGGERS
 -- ==========================================
 
--- Drop existing triggers to allow idempotent re-run
-DROP TRIGGER IF EXISTS tr_projects_updated_at         ON public.projects;
-DROP TRIGGER IF EXISTS tr_tasks_updated_at            ON public.tasks;
-DROP TRIGGER IF EXISTS tr_suppliers_updated_at        ON public.suppliers;
-DROP TRIGGER IF EXISTS tr_assignees_updated_at        ON public.assignees;
-DROP TRIGGER IF EXISTS tr_task_comments_updated_at    ON public.task_comments;
-DROP TRIGGER IF EXISTS tr_task_templates_updated_at   ON public.task_templates;
-DROP TRIGGER IF EXISTS tr_task_attachments_updated_at ON public.task_attachments;
-DROP TRIGGER IF EXISTS tr_projects_audit              ON public.projects;
-DROP TRIGGER IF EXISTS tr_tasks_audit                 ON public.tasks;
-
 -- Timestamp triggers
-CREATE TRIGGER tr_projects_updated_at
-  BEFORE UPDATE ON public.projects
-  FOR EACH ROW EXECUTE PROCEDURE public.set_updated_at();
-
-CREATE TRIGGER tr_tasks_updated_at
-  BEFORE UPDATE ON public.tasks
-  FOR EACH ROW EXECUTE PROCEDURE public.set_updated_at();
-
-CREATE TRIGGER tr_suppliers_updated_at
-  BEFORE UPDATE ON public.suppliers
-  FOR EACH ROW EXECUTE PROCEDURE public.set_updated_at();
-
-CREATE TRIGGER tr_assignees_updated_at
-  BEFORE UPDATE ON public.assignees
-  FOR EACH ROW EXECUTE PROCEDURE public.set_updated_at();
-
-CREATE TRIGGER tr_task_comments_updated_at
-  BEFORE UPDATE ON public.task_comments
-  FOR EACH ROW EXECUTE PROCEDURE public.set_updated_at();
-
-CREATE TRIGGER tr_task_templates_updated_at
-  BEFORE UPDATE ON public.task_templates
-  FOR EACH ROW EXECUTE PROCEDURE public.set_updated_at();
-
-CREATE TRIGGER tr_task_attachments_updated_at
-  BEFORE UPDATE ON public.task_attachments
-  FOR EACH ROW EXECUTE PROCEDURE public.set_updated_at();
+CREATE TRIGGER tr_projects_updated_at BEFORE UPDATE ON public.projects FOR EACH ROW EXECUTE PROCEDURE public.set_updated_at();
+CREATE TRIGGER tr_tasks_updated_at BEFORE UPDATE ON public.tasks FOR EACH ROW EXECUTE PROCEDURE public.set_updated_at();
+CREATE TRIGGER tr_task_comments_updated_at BEFORE UPDATE ON public.task_comments FOR EACH ROW EXECUTE PROCEDURE public.set_updated_at();
 
 -- Audit triggers
-CREATE TRIGGER tr_projects_audit
-  AFTER INSERT OR UPDATE OR DELETE ON public.projects
-  FOR EACH ROW EXECUTE PROCEDURE public.log_audit_event();
+CREATE TRIGGER tr_projects_audit AFTER INSERT OR UPDATE OR DELETE ON public.projects FOR EACH ROW EXECUTE PROCEDURE public.log_audit_event();
+CREATE TRIGGER tr_tasks_audit AFTER INSERT OR UPDATE OR DELETE ON public.tasks FOR EACH ROW EXECUTE PROCEDURE public.log_audit_event();
 
-CREATE TRIGGER tr_tasks_audit
-  AFTER INSERT OR UPDATE OR DELETE ON public.tasks
-  FOR EACH ROW EXECUTE PROCEDURE public.log_audit_event();
-
--- Profile auto-creation on signup
+-- Profile & Data auto-creation on signup
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
   INSERT INTO public.profiles (id, full_name, avatar_url)
-  VALUES (
-    new.id,
-    new.raw_user_meta_data->>'full_name',
-    new.raw_user_meta_data->>'avatar_url'
-  );
+  VALUES (new.id, new.raw_user_meta_data->>'full_name', new.raw_user_meta_data->>'avatar_url')
+  ON CONFLICT (id) DO UPDATE SET full_name = EXCLUDED.full_name, avatar_url = EXCLUDED.avatar_url;
+  
+  PERFORM public.provision_user_defaults(new.id);
   RETURN new;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
-
+CREATE TRIGGER on_auth_user_created AFTER INSERT ON auth.users FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
 
 -- ==========================================
--- 10. ESSENTIAL PERMISSIONS (Production Fix)
+-- 10. PERMISSIONS
 -- ==========================================
--- Ensure roles have standard access to public schema objects
 GRANT USAGE ON SCHEMA public TO anon, authenticated;
 GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO authenticated;

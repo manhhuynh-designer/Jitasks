@@ -77,7 +77,7 @@ export function EditTaskDialog({
   const [taskGroupId, setTaskGroupId] = useState<string | null>(task.task_group_id || null)
   const [profiles, setProfiles] = useState<{id: string, full_name: string}[]>([])
   const [categories, setCategories] = useState<{id: string, name: string, color: string}[]>([])
-  const [taskGroups, setTaskGroups] = useState<{id: string, name: string}[]>([])
+  const [taskGroups, setTaskGroups] = useState<{id: string, name: string, category_id?: string | null}[]>([])
   const [loading, setLoading] = useState(false)
 
   const [comments, setComments] = useState<any[]>([])
@@ -164,19 +164,22 @@ export function EditTaskDialog({
 
   useEffect(() => {
     const fetchGroups = async () => {
-      if (categoryId) {
-        const { data } = await supabase
-          .from('task_groups')
-          .select('id, name')
-          .eq('category_id', categoryId)
-          .order('order_index', { ascending: true })
-        if (data) setTaskGroups(data)
+      // Fetch all groups belonging to this project (or no project if it's a template)
+      let query = supabase
+        .from('task_groups')
+        .select('id, name, category_id')
+      
+      if (task.project_id) {
+        query = query.eq('project_id', task.project_id)
       } else {
-        setTaskGroups([])
+        query = query.is('project_id', null)
       }
+
+      const { data } = await query.order('order_index', { ascending: true })
+      if (data) setTaskGroups(data)
     }
     if (open) fetchGroups()
-  }, [categoryId, open])
+  }, [task.project_id, open])
 
   const handleAddComment = async () => {
     if (!newComment.trim()) return
@@ -491,28 +494,32 @@ export function EditTaskDialog({
                 </div>
               </div>
 
-              {taskGroups.length > 0 && (
-                <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
-                   <Label className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">Nhóm Task</Label>
-                   <Select value={taskGroupId || "none"} onValueChange={(val) => setTaskGroupId(val === "none" ? null : val)}>
-                     <SelectTrigger className="h-11 rounded-xl bg-white/90 border-none hover:bg-white/100 px-4 text-xs font-medium">
-                       <SelectValue placeholder="Chọn nhóm task">
-                         {taskGroupId && taskGroupId !== "none" ? taskGroups.find((g: any) => g.id === taskGroupId)?.name || task.task_groups?.name : "Chọn nhóm task"}
-                       </SelectValue>
-                     </SelectTrigger>
-                     <SelectContent className="rounded-xl border-none glass-premium shadow-2xl p-2">
-                       <SelectItem value="none" className="rounded-lg px-4 py-2 cursor-pointer focus:bg-primary/10 focus:text-primary font-medium text-xs">
-                         -- Không có nhóm --
-                       </SelectItem>
-                       {taskGroups.map(g => (
+              <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                 <Label className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">Nhóm Task</Label>
+                 <Select value={taskGroupId || "none"} onValueChange={(val) => setTaskGroupId(val === "none" ? null : val)}>
+                   <SelectTrigger className="h-11 rounded-xl bg-white/90 border-none hover:bg-white/100 px-4 text-xs font-medium">
+                     <SelectValue placeholder="Chọn nhóm task">
+                       {taskGroupId && taskGroupId !== "none" ? 
+                         (taskGroups.find((g: any) => g.id === taskGroupId)?.name || task.task_groups?.name || "Chọn nhóm task") : 
+                         "Chọn nhóm task"
+                       }
+                     </SelectValue>
+                   </SelectTrigger>
+                   <SelectContent className="rounded-xl border-none glass-premium shadow-2xl p-2">
+                     <SelectItem value="none" className="rounded-lg px-4 py-2 cursor-pointer focus:bg-primary/10 focus:text-primary font-medium text-xs">
+                       -- Không có nhóm --
+                     </SelectItem>
+                     {/* Filter groups by category, but always include the currently selected group if it exists */}
+                     {taskGroups
+                       .filter(g => !categoryId || g.category_id === categoryId || g.id === taskGroupId)
+                       .map(g => (
                          <SelectItem key={g.id} value={g.id} className="rounded-lg px-4 py-2 cursor-pointer focus:bg-primary/10 focus:text-primary font-medium text-xs">
                            {g.name}
                          </SelectItem>
                        ))}
-                     </SelectContent>
-                   </Select>
-                </div>
-              )}
+                   </SelectContent>
+                 </Select>
+              </div>
 
               <div className="grid grid-cols-2 gap-6">
                 <div className="space-y-3">

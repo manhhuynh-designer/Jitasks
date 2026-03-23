@@ -3,10 +3,17 @@
 import { Task } from '@/hooks/use-tasks'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { GanttChartSquare, Calendar, Flag, Settings, Clock, Zap, CheckCircle2 } from 'lucide-react'
+import { GanttChartSquare, Calendar, Flag, Settings, Clock, Zap, CheckCircle2, GripVertical, AlertCircle } from 'lucide-react'
 import { format, isPast, isToday } from 'date-fns'
 import { cn } from '@/lib/utils'
 import { getDeadlineLevel, DEADLINE_LEVELS } from '@/constants/ui-tokens'
+import { useDroppable } from '@dnd-kit/core'
+import { 
+  SortableContext, 
+  verticalListSortingStrategy,
+  useSortable 
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 
 interface MiniGanttCardProps {
   group: {
@@ -55,7 +62,69 @@ const PRIORITY_COLORS: Record<string, string> = {
   high: 'text-rose-500',
 }
 
+function DraggableTaskItem({ task, onTaskClick }: { task: Task, onTaskClick?: (id: string) => void }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging
+  } = useSortable({ 
+    id: task.id,
+    data: {
+      type: 'Task',
+      task
+    }
+  })
+
+  const style = {
+    transform: CSS.Translate.toString(transform),
+    transition,
+  }
+
+  const taskDeadline = task.deadline ? new Date(task.deadline) : null
+  const statusStyle = STATUS_STYLES[task.status] || STATUS_STYLES.todo
+  const priorityColor = PRIORITY_COLORS[task.priority] || PRIORITY_COLORS.low
+
+  return (
+    <div 
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "h-10 px-3 rounded-[1rem] flex items-center justify-between cursor-default transition-all border border-transparent group/task",
+        statusStyle.bg,
+        !isDragging && statusStyle.hover,
+        !isDragging && "hover:border-slate-200 hover:scale-[1.02]",
+        isDragging && "opacity-30 border-primary/20 bg-primary/5 active:scale-95"
+      )}
+    >
+      <div className="flex items-center gap-2 overflow-hidden flex-1" onClick={() => onTaskClick?.(task.id)}>
+        <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-primary transition-colors pr-1">
+          <GripVertical className="h-3 w-3" />
+        </div>
+        <Flag className={cn("h-3 w-3 shrink-0 fill-current", priorityColor)} />
+        <span className={cn("text-[11px] font-bold truncate transition-colors", statusStyle.text)}>
+          {task.name}
+        </span>
+      </div>
+      {taskDeadline && (
+        <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 shrink-0 ml-2 opacity-60 group-hover/task:opacity-100">
+          {format(taskDeadline, 'dd/MM')}
+        </span>
+      )}
+    </div>
+  )
+}
+
 export function MiniGanttCard({ group, tasks, onExpand, onCardClick, onTaskClick, onEditGroup }: MiniGanttCardProps) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: group.id,
+    data: {
+      type: 'Group',
+      group
+    }
+  })
   const startDate = group.start_date ? new Date(group.start_date) : null
   const deadline = group.deadline ? new Date(group.deadline) : null
   
@@ -82,10 +151,12 @@ export function MiniGanttCard({ group, tasks, onExpand, onCardClick, onTaskClick
 
   return (
     <Card 
+      ref={setNodeRef}
       onClick={onCardClick}
       className={cn(
         "rounded-[2.5rem] border-none bg-white shadow-xl shadow-slate-200/50 hover:shadow-2xl transition-all group overflow-hidden h-full flex flex-col min-h-[180px]",
-        onCardClick && "cursor-pointer active:scale-[0.98]"
+        onCardClick && "cursor-pointer active:scale-[0.98]",
+        isOver && "ring-2 ring-primary ring-offset-4 ring-offset-slate-50 bg-primary/[0.02]"
       )}
     >
       <CardHeader className="p-6 pb-2 flex flex-row items-center justify-between space-y-0 relative z-10">
@@ -129,7 +200,7 @@ export function MiniGanttCard({ group, tasks, onExpand, onCardClick, onTaskClick
           <Button 
             variant="ghost" 
             size="icon" 
-            onClick={(e) => {
+            onClick={(e: React.MouseEvent) => {
               e.stopPropagation()
               onEditGroup?.(group.id)
             }}
@@ -140,7 +211,7 @@ export function MiniGanttCard({ group, tasks, onExpand, onCardClick, onTaskClick
           <Button 
             variant="ghost" 
             size="icon" 
-            onClick={(e) => {
+            onClick={(e: React.MouseEvent) => {
               e.stopPropagation()
               onExpand(group.id)
             }}
@@ -154,39 +225,20 @@ export function MiniGanttCard({ group, tasks, onExpand, onCardClick, onTaskClick
       <CardContent className="px-6 pb-6 pt-2 flex-1 flex flex-col bg-slate-50/10">
         <div className="space-y-2 mt-2 flex-1">
           {tasks.length > 0 ? (
-            // Show up to 6 tasks in the mini view
-            tasks.slice(0, 6).map(task => {
-              const taskDeadline = task.deadline ? new Date(task.deadline) : null
-              const style = STATUS_STYLES[task.status] || STATUS_STYLES.todo
-              const priorityColor = PRIORITY_COLORS[task.priority] || PRIORITY_COLORS.low
-
-              return (
-                <div 
-                  key={task.id}
-                  onClick={(e) => {
-                      e.stopPropagation()
-                      onTaskClick?.(task.id)
-                  }}
-                  className={cn(
-                    "h-10 px-3 rounded-[1rem] flex items-center justify-between cursor-pointer transition-all border border-transparent hover:border-slate-200 group/task hover:scale-[1.02]",
-                    style.bg,
-                    style.hover
-                  )}
-                >
-                  <div className="flex items-center gap-2 overflow-hidden">
-                    <Flag className={cn("h-3 w-3 shrink-0 fill-current", priorityColor)} />
-                    <span className={cn("text-[11px] font-bold truncate transition-colors", style.text)}>
-                      {task.name}
-                    </span>
-                  </div>
-                  {taskDeadline && (
-                    <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 shrink-0 ml-2 opacity-60 group-hover/task:opacity-100">
-                      {format(taskDeadline, 'dd/MM')}
-                    </span>
-                  )}
-                </div>
-              )
-            })
+            <SortableContext 
+              id={group.id}
+              items={tasks.map(t => t.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              {/* Show up to 6 tasks in the mini view */}
+              {tasks.slice(0, 6).map(task => (
+                <DraggableTaskItem 
+                  key={task.id} 
+                  task={task} 
+                  onTaskClick={onTaskClick} 
+                />
+              ))}
+            </SortableContext>
           ) : (
             <div className="h-16 flex items-center justify-center border-2 border-dashed border-slate-100 rounded-[1.5rem] bg-white/50">
               <p className="text-[9px] font-black text-slate-200 uppercase tracking-widest">No tasks</p>

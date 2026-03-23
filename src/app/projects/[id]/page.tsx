@@ -34,7 +34,8 @@ import {
   Search,
   ArrowUpDown,
   Maximize2,
-  Image as ImageIcon
+  Image as ImageIcon,
+  GripVertical
 } from 'lucide-react'
 import { format, isPast, isToday, isBefore, addDays } from 'date-fns'
 import { vi } from 'date-fns/locale'
@@ -66,6 +67,25 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Label } from '@/components/ui/label'
+import {
+  DndContext,
+  closestCorners,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+  DragOverEvent,
+  DragStartEvent,
+  DragOverlay,
+  defaultDropAnimationSideEffects,
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
 
 import { EditTaskDialog } from '@/components/tasks/edit-task-dialog'
 import { AssigneeLoadPanel } from '@/components/analytics/assignee-load-panel'
@@ -102,6 +122,12 @@ export default function ProjectDetail() {
   const [coverUrl, setCoverUrl] = useState(project?.cover_url || '')
   const [updatingCover, setUpdatingCover] = useState(false)
   const [descriptionOpen, setDescriptionOpen] = useState(false)
+  const [activeId, setActiveId] = useState<string | null>(null)
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  )
 
   useEffect(() => {
     if (project?.name) {
@@ -199,6 +225,28 @@ export default function ProjectDetail() {
     }
   }, [id, activeCategoryId])
 
+  const handleStageChange = async (cat: {id: string, name: string}) => {
+    if (!project) return
+    setActiveCategoryId(cat.id)
+    
+    // Optomistic UI update
+    const previousStatus = project.status
+    setProject(prev => prev ? { ...prev, status: cat.name as any } : null)
+
+    try {
+      const { error } = await supabase
+        .from('projects')
+        .update({ status: cat.name as any })
+        .eq('id', id)
+      
+      if (error) throw error
+    } catch (err: any) {
+      console.error("Error updating project stage:", err)
+      // Revert on error
+      setProject(prev => prev ? { ...prev, status: previousStatus } : null)
+      alert(`Lỗi khi cập nhật giai đoạn: ${err.message}. Đảm bảo tên giai đoạn "${cat.name}" có trong danh sách cho phép.`)
+    }
+  }
 
   const groups = useMemo(() => {
     let filteredTasks = tasks.filter(t => t.category_id === activeCategoryId || (!t.category_id && activeCategoryId === categories[0]?.id))
@@ -348,6 +396,68 @@ export default function ProjectDetail() {
     setTasks(tasks.filter(t => t.id !== taskId))
   }
 
+  // --- Drag and Drop Handlers ---
+
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(event.active.id as string)
+  }
+
+  const handleDragOver = (event: DragOverEvent) => {
+    const { active, over } = event
+    if (!over) return
+
+    const activeId = active.id as string
+    const overId = over.id as string
+
+    // Find the containers
+    const activeContainer = active.data.current?.sortable?.containerId || active.data.current?.containerId
+    const overContainer = over.data.current?.sortable?.containerId || overId
+
+    if (!activeContainer || !overContainer) return
+
+    if (activeContainer !== overContainer) {
+      setTasks((prev) => {
+        const activeIndex = prev.findIndex((t) => t.id === activeId)
+        if (activeIndex === -1) return prev
+        
+        const newGroupId = overContainer === 'ungrouped' ? null : overContainer
+        
+        const updated = [...prev]
+        updated[activeIndex] = { ...updated[activeIndex], task_group_id: newGroupId }
+        return updated
+      })
+    }
+  }
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event
+    setActiveId(null)
+
+    if (!over) return
+
+    if (active.data.current?.type !== 'Task') return
+
+    const activeId = active.id as string
+    const task = tasks.find(t => t.id === activeId)
+    if (!task) return
+
+    const groupId = task.task_group_id
+    
+    // Safety: ensure it's still assigned to the active category if we want to move it accurately
+    // In this view we're mostly moving between groups in the same category anyway.
+
+    const { error } = await supabase
+      .from('tasks')
+      .update({ task_group_id: groupId })
+      .eq('id', activeId)
+
+    if (error) {
+      console.error('Error persisting DnD:', error.message)
+      alert('Lỗi khi lưu vị trí task: ' + error.message)
+      fetchData(true) // Rollback
+    }
+  }
+
   if (initialLoading) return (
     <div className="p-8 space-y-10 animate-in fade-in duration-500">
       <div className="flex items-center gap-4">
@@ -474,7 +584,7 @@ export default function ProjectDetail() {
                   {categories.length > 0 ? categories.map((cat, index) => (
                     <button
                       key={cat.id}
-                      onClick={() => setActiveCategoryId(cat.id)}
+                      onClick={() => handleStageChange(cat)}
                       className={cn(
                         "flex-1 py-4 text-[10px] font-black uppercase tracking-widest transition-all duration-300 relative group border-none outline-none rounded-none",
                         activeCategoryId === cat.id 
@@ -583,22 +693,49 @@ export default function ProjectDetail() {
 
             return (
               <div key={activeCategoryId} className="space-y-12 animate-in fade-in slide-in-from-bottom-6 duration-700 ease-out">
-                {/* Grid of Mini Gantt Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
-                  {groups.map(group => (
-                    <MiniGanttCard 
-                      key={group.id}
-                      group={group as any}
-                      tasks={group.tasks}
-                      onExpand={(id) => setExpandedGroupId(id)}
-                      onCardClick={() => setExpandedGroupId(group.id)}
-                      onTaskClick={handleTaskClick}
-                      onEditGroup={(id) => setEditingGroupId(id)}
-                    />
-                  ))}
-                </div>
+                {/* Grid of Mini Gantt Cards wrapped in DndContext */}
+                <DndContext 
+                  sensors={sensors}
+                  collisionDetection={closestCorners}
+                  onDragStart={handleDragStart}
+                  onDragOver={handleDragOver}
+                  onDragEnd={handleDragEnd}
+                >
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+                    {groups.map(group => (
+                      <MiniGanttCard 
+                        key={group.id}
+                        group={group as any}
+                        tasks={group.tasks}
+                        onExpand={(id) => setExpandedGroupId(id)}
+                        onCardClick={() => setExpandedGroupId(group.id)}
+                        onTaskClick={handleTaskClick}
+                        onEditGroup={(id) => setEditingGroupId(id)}
+                      />
+                    ))}
+                  </div>
 
-                {/* Full Timeline Modal */}
+                  <DragOverlay dropAnimation={{
+                    sideEffects: defaultDropAnimationSideEffects({
+                      styles: { active: { opacity: '0.5' } },
+                    }),
+                  }}>
+                    {activeId ? (
+                      <div className="bg-white border-2 border-primary/20 rounded-2xl p-4 shadow-2xl ring-4 ring-primary/5 cursor-grabbing scale-105 rotate-1 flex items-center gap-3">
+                        <GripVertical className="h-4 w-4 text-primary" />
+                        <div className="flex-1">
+                          <h5 className="text-[13px] font-bold text-slate-700 tracking-tight">
+                            {tasks.find(t => t.id === activeId)?.name}
+                          </h5>
+                          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
+                            {tasks.find(t => t.id === activeId)?.status}
+                          </p>
+                        </div>
+                      </div>
+                    ) : null}
+                  </DragOverlay>
+                </DndContext>
+
                 {expandedGroupId && activeGroup && (
                   <GroupTimelineModal 
                     open={!!expandedGroupId}
