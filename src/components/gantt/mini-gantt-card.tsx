@@ -99,7 +99,13 @@ function DraggableTaskItem({ task, onTaskClick }: { task: Task, onTaskClick?: (i
         isDragging && "opacity-30 border-primary/20 bg-primary/5 active:scale-95"
       )}
     >
-      <div className="flex items-center gap-2 overflow-hidden flex-1" onClick={() => onTaskClick?.(task.id)}>
+      <div 
+        className="flex items-center gap-2 overflow-hidden flex-1" 
+        onClick={(e) => {
+          e.stopPropagation()
+          onTaskClick?.(task.id)
+        }}
+      >
         <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-primary transition-colors pr-1">
           <GripVertical className="h-3 w-3" />
         </div>
@@ -160,8 +166,14 @@ export function MiniGanttCard({ group, tasks, onExpand, onCardClick, onTaskClick
       )}
     >
       <CardHeader className="p-6 pb-2 flex flex-row items-center justify-between space-y-0 relative z-10">
-        <div className="space-y-1">
-          <CardTitle className="text-xs font-black text-slate-800 uppercase tracking-widest truncate max-w-[140px]">
+        <div 
+          className={cn("space-y-1", onCardClick && "cursor-pointer")}
+          onClick={(e) => {
+            e.stopPropagation()
+            onCardClick?.()
+          }}
+        >
+          <CardTitle className="text-xs font-black text-slate-800 uppercase tracking-widest truncate max-w-[140px] hover:text-primary transition-colors">
             {group.name}
           </CardTitle>
           {health.level === 'alert' && (

@@ -119,18 +119,21 @@ export function AddGroupDialog({ projectId, categoryId, onGroupCreated, trigger 
           </Button>
         )}
       />
-      <DialogContent className="sm:max-w-[500px] rounded-[3.5rem] border-none glass-premium p-10 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-500">
-        <DialogHeader className="space-y-4">
-          <div className="h-16 w-16 rounded-[1.8rem] bg-primary/10 flex items-center justify-center text-primary shadow-inner">
-             <Layers className="h-8 w-8" />
-          </div>
-          <DialogTitle className="text-3xl font-black text-slate-900 tracking-tight leading-none">Thêm Nhóm Task</DialogTitle>
-          <DialogDescription className="text-slate-500 font-medium text-sm">
-            Chọn từ template hoặc tạo nhóm mới cho giai đoạn này.
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent className="sm:max-w-[500px] rounded-[2.5rem] border-none glass-premium p-0 flex flex-col max-h-[90dvh]">
+        <div className="p-8 pb-0">
+          <DialogHeader className="space-y-4">
+            <div className="h-16 w-16 rounded-[1.8rem] bg-primary/10 flex items-center justify-center text-primary shadow-inner">
+               <Layers className="h-8 w-8" />
+            </div>
+            <DialogTitle className="text-3xl font-black text-slate-900 tracking-tight leading-none">Thêm Nhóm Task</DialogTitle>
+            <DialogDescription className="text-slate-500 font-medium text-sm">
+              Chọn từ template hoặc tạo nhóm mới cho giai đoạn này.
+            </DialogDescription>
+          </DialogHeader>
+        </div>
 
-        <form onSubmit={handleSubmit} className="space-y-8 pt-6">
+        <div className="flex-1 overflow-y-auto px-10 py-6 custom-scrollbar">
+          <form id="add-group-form" onSubmit={handleSubmit} className="space-y-8">
           <div className="space-y-5">
             <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-2">Chọn từ Templates</Label>
             <div className="grid grid-cols-2 gap-4">
@@ -188,9 +191,13 @@ export function AddGroupDialog({ projectId, categoryId, onGroupCreated, trigger 
               className="rounded-[1.5rem] h-14 bg-slate-50/50 border-none focus-visible:ring-primary/20 font-black text-slate-800 placeholder:text-slate-300 px-6 shadow-inner"
             />
           </div>
+          </form>
+        </div>
 
-          <DialogFooter className="pt-4">
+        <div className="p-8 pt-2 border-t border-slate-100 shrink-0">
+          <DialogFooter>
             <Button 
+              form="add-group-form"
               type="submit" 
               disabled={loading || (!name && !selectedTemplateId)} 
               className="w-full rounded-[2rem] h-16 font-black text-lg shadow-2xl shadow-primary/30 bg-primary text-white hover:bg-primary/95 transition-all hover:scale-[1.02] active:scale-95"
@@ -198,7 +205,7 @@ export function AddGroupDialog({ projectId, categoryId, onGroupCreated, trigger 
               {loading ? 'Đang tạo...' : 'Tạo Nhóm & Task'}
             </Button>
           </DialogFooter>
-        </form>
+        </div>
       </DialogContent>
     </Dialog>
   )

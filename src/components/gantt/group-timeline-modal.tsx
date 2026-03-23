@@ -292,7 +292,7 @@ export function GroupTimelineModal({ group, tasks: initialTasks, open, onOpenCha
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[95vw] w-[1300px] sm:max-w-[95vw] sm:w-[1300px] h-[85vh] rounded-[3.5rem] border-none glass-premium p-0 overflow-hidden flex flex-col shadow-2xl animate-in zoom-in-95 duration-500">
+      <DialogContent className="max-w-[95vw] w-[1300px] sm:max-w-[95vw] sm:w-[1300px] max-h-[90dvh] rounded-[2.5rem] border-none glass-premium p-0 overflow-hidden flex flex-col shadow-2xl animate-in zoom-in-95 duration-500">
         <DialogHeader className="p-10 pb-6 bg-white/80 border-b border-slate-100/50 backdrop-blur-xl shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-6">

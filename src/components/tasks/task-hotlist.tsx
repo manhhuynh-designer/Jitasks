@@ -129,7 +129,7 @@ export function TaskHotlist({
               key={task.id} 
               onClick={() => setSelectedTask(task)}
               className={cn(
-                "group flex items-start gap-4 p-4 rounded-2xl bg-white border border-rose-100 transition-all duration-300 cursor-pointer hover:scale-[1.02] hover:border-rose-300 shadow-sm",
+                "group flex items-start gap-3 sm:gap-4 p-3 sm:p-4 rounded-2xl bg-white border border-rose-100 transition-all duration-300 cursor-pointer hover:scale-[1.01] xl:hover:scale-[1.02] hover:border-rose-300 shadow-sm",
                 filter === 'today' ? "hover:shadow-lg hover:shadow-rose-100/50" : "hover:shadow-lg hover:shadow-primary/5"
               )}
             >
@@ -168,8 +168,10 @@ export function TaskHotlist({
               
               <div className="flex-1 min-w-0 space-y-2">
                 <div className="flex items-center justify-between gap-2 overflow-hidden">
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest truncate">
-                    {task.projects?.name || "Dự án"} {task.project_categories?.name ? ` / ${task.project_categories.name}` : ''} {task.task_groups?.name ? ` / ${task.task_groups.name}` : ''}
+                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.1em] xl:tracking-widest truncate">
+                    {task.projects?.name || "Dự án"}
+                    <span className="opacity-40 mx-1">/</span>
+                    <span className="text-slate-500">{task.project_categories?.name || task.task_groups?.name || "Chi tiết"}</span>
                   </span>
                   <div className="flex items-center gap-1.5 shrink-0">
                     {task.task_time != null && (

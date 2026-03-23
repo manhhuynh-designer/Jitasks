@@ -89,16 +89,20 @@ export function EditGroupDialog({ groupId, open, onOpenChange, onGroupUpdated }:
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[450px] rounded-[3.5rem] border-none glass-premium p-10 shadow-2xl overflow-hidden">
-        <DialogHeader className="space-y-4">
-          <div className="h-16 w-16 rounded-[1.8rem] bg-primary/10 flex items-center justify-center text-primary shadow-inner">
-             <Layers className="h-8 w-8" />
-          </div>
-          <DialogTitle className="text-3xl font-black text-slate-900 tracking-tight leading-none">Chỉnh sửa Nhóm</DialogTitle>
-          <DialogDescription className="text-slate-500 font-medium text-sm">
-            Cập nhật tên nhóm hoặc điều chỉnh timeline thủ công.
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent className="sm:max-w-[450px] rounded-[2.5rem] border-none glass-premium p-0 flex flex-col max-h-[90dvh]">
+        <div className="p-8 pb-0">
+          <DialogHeader className="space-y-4">
+            <div className="h-16 w-16 rounded-[1.8rem] bg-primary/10 flex items-center justify-center text-primary shadow-inner">
+               <Layers className="h-8 w-8" />
+            </div>
+            <DialogTitle className="text-3xl font-black text-slate-900 tracking-tight leading-none">Chỉnh sửa Nhóm</DialogTitle>
+            <DialogDescription className="text-slate-500 font-medium text-sm">
+              Cập nhật tên nhóm hoặc điều chỉnh timeline thủ công.
+            </DialogDescription>
+          </DialogHeader>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-10 py-6 custom-scrollbar">
 
         {fetching ? (
           <div className="py-20 flex flex-col items-center justify-center gap-4">
@@ -106,7 +110,7 @@ export function EditGroupDialog({ groupId, open, onOpenChange, onGroupUpdated }:
              <p className="text-[10px] font-black uppercase tracking-widest text-slate-300">Đang tải dữ liệu...</p>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-8 pt-6">
+          <form id="edit-group-form" onSubmit={handleSubmit} className="space-y-8">
             <div className="space-y-6">
               <div className="space-y-3">
                 <Label htmlFor="eg-name" className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-2">Tên Nhóm</Label>
@@ -126,6 +130,7 @@ export function EditGroupDialog({ groupId, open, onOpenChange, onGroupUpdated }:
                       render={
                         <Button
                           variant="outline"
+                          type="button"
                           className={cn(
                             "w-full h-14 justify-start text-left font-black rounded-[1.5rem] bg-slate-50/50 border-none hover:bg-slate-100 transition-all px-6 text-slate-800 shadow-inner",
                             !startDate && "text-slate-400"
@@ -153,6 +158,7 @@ export function EditGroupDialog({ groupId, open, onOpenChange, onGroupUpdated }:
                     <PopoverTrigger
                       render={
                         <Button
+                          type="button"
                           variant="outline"
                           className={cn(
                             "w-full h-14 justify-start text-left font-black rounded-[1.5rem] bg-slate-50/50 border-none hover:bg-slate-100 transition-all px-6 text-slate-800 shadow-inner",
@@ -177,19 +183,23 @@ export function EditGroupDialog({ groupId, open, onOpenChange, onGroupUpdated }:
                 </div>
               </div>
             </div>
-
-            <DialogFooter className="pt-4">
-              <Button 
-                type="submit" 
-                disabled={loading || !name} 
-                className="w-full rounded-[2rem] h-16 font-black text-lg bg-primary text-white hover:bg-primary/95 transition-all hover:scale-[1.02] active:scale-95 gap-2"
-              >
-                <Save className="h-5 w-5" />
-                {loading ? 'Đang lưu...' : 'Lưu Thay Đổi'}
-              </Button>
-            </DialogFooter>
           </form>
         )}
+        </div>
+
+        <div className="p-8 pt-2 border-t border-slate-100 shrink-0">
+          <DialogFooter>
+            <Button 
+              form="edit-group-form"
+              type="submit" 
+              disabled={loading || !name} 
+              className="w-full rounded-[2rem] h-16 font-black text-lg bg-primary text-white hover:bg-primary/95 transition-all hover:scale-[1.02] active:scale-95 gap-2"
+            >
+              <Save className="h-5 w-5" />
+              {loading ? 'Đang lưu...' : 'Lưu Thay Đổi'}
+            </Button>
+          </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   )

@@ -161,7 +161,7 @@ export function EditProjectDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] rounded-[2.5rem] border-none glass-premium p-0 flex flex-col max-h-[90vh]">
+      <DialogContent className="sm:max-w-[500px] rounded-[2.5rem] border-none glass-premium p-0 flex flex-col max-h-[90dvh]">
         <div className="p-8 pb-0">
           <DialogHeader className="space-y-3">
             <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center mb-2">

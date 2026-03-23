@@ -18,7 +18,15 @@ This skill defines the standard for "Premium" dialogs in the Jitasks application
 
 ### Dialog Content
 ```tsx
-<DialogContent className="sm:max-w-[425px] rounded-[2.5rem] border-none glass-premium p-8">
+<DialogContent className="sm:max-w-[425px] rounded-[2.5rem] border-none glass-premium p-0 flex flex-col max-h-[90dvh]">
+```
+
+### Scrolling Body
+Wrap the middle content in a scrollable container to prevent cropping:
+```tsx
+<div className="flex-1 overflow-y-auto px-8 py-6 custom-scrollbar">
+  {/* Form or content goes here */}
+</div>
 ```
 
 ### Typography

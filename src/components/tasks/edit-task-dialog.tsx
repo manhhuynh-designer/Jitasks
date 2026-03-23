@@ -307,7 +307,7 @@ export function EditTaskDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[550px] rounded-[2.5rem] border-none glass-premium p-0 flex flex-col max-h-[90vh]">
+      <DialogContent className="sm:max-w-[550px] rounded-[2.5rem] border-none glass-premium p-0 flex flex-col max-h-[90dvh]">
         <div className="p-8 pb-0 text-center sm:text-left">
           <DialogHeader className="space-y-3">
             {isEditing && (

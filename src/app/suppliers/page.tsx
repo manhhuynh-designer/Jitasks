@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Building2, Plus, Phone, MapPin, FileSignature, Trash2, AlertCircle, Pencil, Search, X, ArrowUpDown, ChevronLeft, ChevronRight, FileText } from 'lucide-react'
 import { NewSupplierDialog } from '@/components/suppliers/new-supplier-dialog'
+import { ImportSuppliersDialog } from '@/components/suppliers/import-suppliers-dialog'
 import { cn } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
 import { Input } from '@/components/ui/input'
@@ -76,11 +77,14 @@ export default function SuppliersPage() {
           </div>
         </div>
         
-        <NewSupplierDialog onSupplierCreated={fetchSuppliers} trigger={
-          <Button className="rounded-2xl h-14 px-8 font-black uppercase tracking-widest text-xs bg-primary text-white shadow-xl shadow-primary/20 hover:scale-105 active:scale-95 transition-all">
-            <Plus className="mr-2 h-5 w-5 stroke-[3px]"></Plus> Thêm Đối Tác Mới
-          </Button>
-        } />
+        <div className="flex flex-wrap items-center gap-3">
+          <ImportSuppliersDialog onImported={fetchSuppliers} />
+          <NewSupplierDialog onSupplierCreated={fetchSuppliers} trigger={
+            <Button className="rounded-2xl h-14 px-8 font-black uppercase tracking-widest text-xs bg-primary text-white shadow-xl shadow-primary/20 hover:scale-105 active:scale-95 transition-all">
+              <Plus className="mr-2 h-5 w-5 stroke-[3px]"></Plus> Thêm Đối Tác Mới
+            </Button>
+          } />
+        </div>
       </section>
 
       <section className="flex flex-col sm:flex-row gap-4 items-center justify-between bg-white/40 glass-premium p-3 rounded-3xl border border-white/60 shadow-sm">

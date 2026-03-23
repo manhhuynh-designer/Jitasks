@@ -121,6 +121,8 @@ export default function ProjectDetail() {
   const [isUpdateCoverOpen, setIsUpdateCoverOpen] = useState(false)
   const [coverUrl, setCoverUrl] = useState(project?.cover_url || '')
   const [updatingCover, setUpdatingCover] = useState(false)
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false)
+  const [isImageValid, setIsImageValid] = useState(true)
   const [descriptionOpen, setDescriptionOpen] = useState(false)
   const [activeId, setActiveId] = useState<string | null>(null)
 
@@ -141,6 +143,33 @@ export default function ProjectDetail() {
       setCoverUrl(project.cover_url || '')
     }
   }, [project?.cover_url])
+
+  // Helper to convert Google Drive links to direct image links
+  const convertDriveLink = (url: string): string => {
+    if (!url || typeof url !== 'string') return url;
+    
+    // Nếu không phải Google URL thì trả về nguyên
+    if (!url.includes('drive.google.com') && !url.includes('docs.google.com')) {
+      return url;
+    }
+
+    // Ưu tiên pattern cụ thể nhất trước
+    const patterns = [
+      /\/file\/d\/([a-zA-Z0-9_-]{10,})/,      // /file/d/ID (most common share link)
+      /[?&]id=([a-zA-Z0-9_-]{10,})/,          // ?id=ID or &id=ID
+      /\/d\/([a-zA-Z0-9_-]{10,})(?:\/|$|\?)/  // /d/ID/ or /d/ID end (avoid partial match)
+    ];
+
+    for (const pattern of patterns) {
+      const match = url.match(pattern);
+      if (match?.[1]) {
+        return `https://drive.google.com/uc?export=view&id=${match[1]}`;
+      }
+    }
+
+    // URL là Google nhưng không nhận diện được format → trả về nguyên
+    return url;
+  };
 
   const handleUpdateCover = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -513,8 +542,10 @@ export default function ProjectDetail() {
         {project.cover_url && (
           <div className="absolute -top-[8.5rem] w-screen left-1/2 -translate-x-1/2 bottom-0 z-0 overflow-hidden pointer-events-none translate-z-0">
             <img 
-              src={project.cover_url} 
+              src={convertDriveLink(project.cover_url)} 
               alt="Project Cover" 
+              referrerPolicy="no-referrer"
+              crossOrigin="anonymous"
               className="w-full h-full object-cover opacity-100 contrast-[0.9] saturate-[1.1]" 
             />
             {/* Multi-layered gradients for depth and blending - using slate-50 to match bg-slate-50 */}
@@ -892,7 +923,7 @@ export default function ProjectDetail() {
             </div>
             <DialogTitle className="text-2xl font-black text-slate-900 tracking-tight">Cập nhật ảnh bìa</DialogTitle>
             <DialogDescription className="text-slate-500 font-medium">
-              Nhập liên kết hình ảnh để thay đổi nền cho thanh giai đoạn.
+              Nhập liên kết hình ảnh để thay đổi nền cho thanh giai đoạn. (Lưu ý: Nếu dùng Google Drive, hãy chọn "Bất kỳ ai có liên kết đều có thể xem")
             </DialogDescription>
           </DialogHeader>
 
@@ -905,21 +936,62 @@ export default function ProjectDetail() {
                   id="cover-url" 
                   placeholder="https://example.com/image.jpg" 
                   value={coverUrl}
-                  onChange={(e) => setCoverUrl(e.target.value)}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    const converted = convertDriveLink(raw);
+                    setCoverUrl(converted);
+                    setIsImageValid(true);
+                    if (converted) {
+                      setIsPreviewLoading(true);
+                    } else {
+                      setIsPreviewLoading(false);
+                    }
+                  }}
                   className="rounded-2xl h-14 bg-slate-50 border-none focus-visible:ring-primary/20 font-medium pl-11 shadow-inner"
                 />
               </div>
             </div>
 
             {coverUrl && (
-              <div className="rounded-2xl overflow-hidden aspect-[21/9] bg-slate-100 border-2 border-slate-100">
-                <img src={coverUrl} alt="Preview" className="w-full h-full object-cover" onError={(e) => (e.currentTarget.src = 'https://placehold.co/600x200?text=Invalid+Image+URL')} />
+              <div className="relative rounded-2xl overflow-hidden aspect-[21/9] bg-slate-100 border-2 border-slate-100">
+                {isPreviewLoading && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-50/80 backdrop-blur-sm z-10 gap-3">
+                    <div className="h-8 w-8 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Đang tải preview...</p>
+                  </div>
+                )}
+                <img 
+                  src={coverUrl} 
+                  alt="Preview" 
+                  referrerPolicy="no-referrer"
+                  crossOrigin="anonymous"
+                  className={cn("w-full h-full object-cover transition-opacity duration-300", isPreviewLoading ? "opacity-0" : "opacity-100")} 
+                  onLoad={() => {
+                    setIsPreviewLoading(false);
+                    setIsImageValid(true);
+                  }}
+                  onError={(e) => {
+                    setIsPreviewLoading(false);
+                    setIsImageValid(false);
+                    e.currentTarget.src = 'https://placehold.co/600x200?text=Link+hình+không+hợp+lệ';
+                  }} 
+                />
+                {!isPreviewLoading && !isImageValid && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-rose-50/90 z-10 gap-2">
+                    <AlertCircle className="h-8 w-8 text-rose-500" />
+                    <p className="text-[10px] font-black uppercase tracking-widest text-rose-500">Link hình không hiển thị được</p>
+                  </div>
+                )}
               </div>
             )}
 
             <DialogFooter>
-              <Button type="submit" disabled={updatingCover} className="w-full rounded-2xl h-14 font-black text-lg bg-slate-900 text-white hover:bg-slate-800 transition-all shadow-lg shadow-slate-200">
-                {updatingCover ? 'Đang cập nhật...' : 'Cập nhật ngay'}
+              <Button 
+                type="submit" 
+                disabled={updatingCover || isPreviewLoading || (!isImageValid && coverUrl !== "")} 
+                className="w-full rounded-2xl h-14 font-black text-lg bg-slate-900 text-white hover:bg-slate-800 transition-all shadow-lg shadow-slate-200"
+              >
+                {updatingCover ? 'Đang cập nhật...' : isPreviewLoading ? 'Đang kiểm tra hình...' : 'Cập nhật ngay'}
               </Button>
             </DialogFooter>
           </form>

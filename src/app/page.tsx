@@ -377,7 +377,7 @@ export default function Dashboard() {
       </div>
 
 
-      <div className="flex flex-col lg:flex-row gap-8 lg:items-stretch items-start">
+      <div className="flex flex-col xl:flex-row gap-8 xl:items-stretch items-start">
         {/* Left Column: Project Grid */}
         <div className="flex-1 min-w-0 w-full space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 border-b border-white/40 pb-6 mb-6">
@@ -760,10 +760,10 @@ export default function Dashboard() {
         </div>
 
         {/* Right Column: Unified Hotlist */}
-        <aside className="w-full lg:w-[340px] lg:shrink-0 flex flex-col">
-          <div className="glass-premium rounded-3xl soft-glow lg:h-0 lg:min-h-full bg-white/30 border border-white/50 relative flex flex-col overflow-hidden">
+        <aside className="w-full xl:w-[380px] xl:shrink-0 flex flex-col">
+          <div className="glass-premium rounded-3xl soft-glow h-auto xl:h-0 xl:min-h-full min-h-[400px] bg-white/30 border border-white/50 relative flex flex-col overflow-hidden">
             {/* Task Switcher - Integrated with top */}
-            <div className="flex px-4 gap-3 bg-white/10 border-b border-white/20 h-16 items-center w-full rounded-t-3xl mt-2">
+            <div className="flex px-4 gap-3 bg-white/10 border-b border-white/20 min-h-[64px] items-center w-full rounded-t-3xl mt-2">
               <div className="flex-1">
                 <Button 
                   onClick={() => setTaskFilter('today')}
