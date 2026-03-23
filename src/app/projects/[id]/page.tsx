@@ -120,10 +120,10 @@ export default function ProjectDetail() {
   
   const [isUpdateCoverOpen, setIsUpdateCoverOpen] = useState(false)
   const [coverUrl, setCoverUrl] = useState(project?.cover_url || '')
+  const [defaultCoverUrl, setDefaultCoverUrl] = useState<string | null>(null)
   const [updatingCover, setUpdatingCover] = useState(false)
   const [isPreviewLoading, setIsPreviewLoading] = useState(false)
   const [isImageValid, setIsImageValid] = useState(true)
-  const [descriptionOpen, setDescriptionOpen] = useState(false)
   const [activeId, setActiveId] = useState<string | null>(null)
 
   const sensors = useSensors(
@@ -141,8 +141,23 @@ export default function ProjectDetail() {
   useEffect(() => {
     if (project) {
       setCoverUrl(project.cover_url || '')
+      
+      // Fetch default Pexels cover if project has no cover
+      if (!project.cover_url && !defaultCoverUrl) {
+        fetch('/api/pexels')
+          .then(res => res.json())
+          .then(data => {
+            if (data.photos && data.photos.length > 0) {
+              // Pick a deterministic image based on project ID
+              const charSum = project.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
+              const index = charSum % data.photos.length
+              setDefaultCoverUrl(data.photos[index])
+            }
+          })
+          .catch(err => console.error('Error fetching default cover:', err))
+      }
     }
-  }, [project?.cover_url])
+  }, [project?.cover_url, project?.id, defaultCoverUrl])
 
   // Helper to convert Google Drive links to direct image links
   const convertDriveLink = (url: string): string => {
@@ -539,10 +554,10 @@ export default function ProjectDetail() {
           <ImageIcon className="h-4 w-4 text-slate-700" />
         </Button>
 
-        {project.cover_url && (
+        {(project.cover_url || defaultCoverUrl) && (
           <div className="absolute -top-[8.5rem] w-screen left-1/2 -translate-x-1/2 bottom-0 z-0 overflow-hidden pointer-events-none translate-z-0">
             <img 
-              src={convertDriveLink(project.cover_url)} 
+              src={convertDriveLink(project.cover_url || defaultCoverUrl || '')} 
               alt="Project Cover" 
               referrerPolicy="no-referrer"
               crossOrigin="anonymous"
@@ -555,86 +570,87 @@ export default function ProjectDetail() {
           </div>
         )}
 
-        <div className="relative z-10 space-y-10">
+        <div className="relative z-10 space-y-12">
           <Button variant="ghost" onClick={() => router.back()} className="group hover:bg-transparent -ml-2 text-slate-500 hover:text-slate-800 transition-all font-bold uppercase tracking-widest text-[10px]">
             <ArrowLeft className="mr-2 h-4 w-4 transition-transform group-hover:-translate-x-1" /> Quay lại
           </Button>
 
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-            <div className="space-y-6 flex-1">
-              <div className="flex flex-wrap items-center gap-x-10 gap-y-6">
-                <div className="flex items-center gap-4">
-                  <h1 className="text-3xl lg:text-4xl font-black text-slate-900 tracking-tight leading-none drop-shadow-sm">{project.name}</h1>
-                  <div className="flex items-center gap-2">
-                    <Button 
-                      variant="ghost" 
-                      size="icon"
-                      onClick={() => setIsEditOpen(true)}
-                      className="h-10 w-10 rounded-xl bg-white/60 backdrop-blur-md border border-white/50 hover:bg-primary/10 hover:text-primary transition-all active:scale-90"
-                    >
-                      <Pencil className="h-5 w-5" />
-                    </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="icon"
-                      onClick={() => setIsCloneOpen(true)}
-                      className="h-10 w-10 rounded-xl bg-white/60 backdrop-blur-md border border-white/50 hover:bg-primary/10 hover:text-primary transition-all active:scale-90"
-                    >
-                      <Copy className="h-5 w-5" />
-                    </Button>
-                  </div>
+          <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8">
+            <div className="space-y-4 flex-1">
+              <div className="flex items-center gap-4">
+                <h1 className="text-3xl lg:text-4xl font-black text-slate-900 tracking-tight leading-none drop-shadow-[0_0_20px_rgba(255,255,255,0.8)]">{project.name}</h1>
+                <div className="flex items-center gap-2">
+                  <Button 
+                    variant="ghost" 
+                    size="icon"
+                    onClick={() => setIsEditOpen(true)}
+                    className="h-10 w-10 rounded-xl bg-white/60 backdrop-blur-md border border-white/50 hover:bg-primary/10 hover:text-primary transition-all active:scale-90"
+                  >
+                    <Pencil className="h-5 w-5" />
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="icon"
+                    onClick={() => setIsCloneOpen(true)}
+                    className="h-10 w-10 rounded-xl bg-white/60 backdrop-blur-md border border-white/50 hover:bg-primary/10 hover:text-primary transition-all active:scale-90"
+                  >
+                    <Copy className="h-5 w-5" />
+                  </Button>
                 </div>
+              </div>
+              {project.description && (
+                <p className="text-sm font-medium text-slate-600/80 leading-relaxed italic max-w-2xl drop-shadow-sm line-clamp-2 hover:line-clamp-none transition-all cursor-default">
+                  {project.description}
+                </p>
+              )}
+            </div>
 
-                <div className="hidden lg:block h-10 w-[1px] bg-slate-200/50" />
-
-                <div className="flex items-center gap-8">
-                  <div className="flex items-center gap-3 group cursor-pointer text-slate-700">
-                    <div className="h-10 w-10 rounded-xl bg-white/60 backdrop-blur-md border border-white/50 flex items-center justify-center group-hover:bg-primary/10 transition-colors">
-                      <Building2 className="h-5 w-5 text-slate-400 group-hover:text-primary" />
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 leading-none mb-1">Supplier</p>
-                      <p className="font-bold text-slate-800">{project.suppliers?.name || 'Chưa định danh'}</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3 text-slate-700">
-                    <div className="h-10 w-10 rounded-xl bg-white/60 backdrop-blur-md border border-white/50 flex items-center justify-center">
-                      <CalendarIcon className="h-5 w-5 text-slate-400" />
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 leading-none mb-1">Created At</p>
-                      <p className="font-bold text-slate-800">{format(new Date(project.created_at), 'dd/MM/yyyy')}</p>
-                    </div>
-                  </div>
+            <div className="flex flex-wrap items-center gap-x-10 gap-y-6 pb-2">
+              <div className="flex items-center gap-3 group cursor-pointer text-slate-700">
+                <div className="h-10 w-10 rounded-xl bg-white/60 backdrop-blur-md border border-white/50 flex items-center justify-center group-hover:bg-primary/10 transition-colors">
+                  <Building2 className="h-5 w-5 text-slate-400 group-hover:text-primary" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 leading-none mb-1">Supplier</p>
+                  <p className="font-bold text-slate-800">{project.suppliers?.name || 'Chưa định danh'}</p>
                 </div>
               </div>
 
-              <div className="w-full max-w-4xl">
-                <div className="relative flex items-center w-full bg-white/40 backdrop-blur-xl rounded-t-2xl border-x border-t border-white/60 overflow-hidden shadow-2xl shadow-slate-200/30">
-                  {categories.length > 0 ? categories.map((cat, index) => (
-                    <button
-                      key={cat.id}
-                      onClick={() => handleStageChange(cat)}
-                      className={cn(
-                        "flex-1 py-4 text-[10px] font-black uppercase tracking-widest transition-all duration-300 relative group border-none outline-none rounded-none",
-                        activeCategoryId === cat.id 
-                          ? cn("text-white z-10", cat.color || 'bg-slate-800') 
-                          : "text-slate-500 hover:text-slate-800 hover:bg-white/40 font-bold"
-                      )}
-                    >
-                      <span className="relative z-10">{index + 1}. {cat.name}</span>
-                      {activeCategoryId === cat.id && (
-                        <div className="absolute inset-0 bg-inherit animate-in fade-in zoom-in-95 duration-300" />
-                      )}
-                    </button>
-                  )) : (
-                    <p className="px-4 py-4 text-[10px] text-slate-400 font-bold uppercase tracking-widest italic animate-pulse w-full text-center">
-                      ⚠️ Cần chạy SQL (setup_dynamic_categories) để hiển thị Giai đoạn
-                    </p>
+              <div className="flex items-center gap-3 text-slate-700">
+                <div className="h-10 w-10 rounded-xl bg-white/60 backdrop-blur-md border border-white/50 flex items-center justify-center">
+                  <CalendarIcon className="h-5 w-5 text-slate-400" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 leading-none mb-1">Created At</p>
+                  <p className="font-bold text-slate-800">{format(new Date(project.created_at), 'dd/MM/yyyy')}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="w-full max-w-4xl">
+            <div className="relative flex items-center w-full bg-white/40 backdrop-blur-xl rounded-t-2xl border-x border-t border-white/60 overflow-hidden shadow-2xl shadow-slate-200/30">
+              {categories.length > 0 ? categories.map((cat, index) => (
+                <button
+                  key={cat.id}
+                  onClick={() => handleStageChange(cat)}
+                  className={cn(
+                    "flex-1 py-4 text-[10px] font-black uppercase tracking-widest transition-all duration-300 relative group border-none outline-none rounded-none",
+                    activeCategoryId === cat.id 
+                      ? cn("text-white z-10", cat.color || 'bg-slate-800') 
+                      : "text-slate-500 hover:text-slate-800 hover:bg-white/40 font-bold"
                   )}
-                </div>
-              </div>
+                >
+                  <span className="relative z-10">{index + 1}. {cat.name}</span>
+                  {activeCategoryId === cat.id && (
+                    <div className="absolute inset-0 bg-inherit animate-in fade-in zoom-in-95 duration-300" />
+                  )}
+                </button>
+              )) : (
+                <p className="px-4 py-4 text-[10px] text-slate-400 font-bold uppercase tracking-widest italic animate-pulse w-full text-center">
+                  ⚠️ Cần chạy SQL (setup_dynamic_categories) để hiển thị Giai đoạn
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -742,6 +758,7 @@ export default function ProjectDetail() {
                         onCardClick={() => setExpandedGroupId(group.id)}
                         onTaskClick={handleTaskClick}
                         onEditGroup={(id) => setEditingGroupId(id)}
+                        onRefresh={() => fetchData(true)}
                       />
                     ))}
                   </div>
@@ -775,6 +792,8 @@ export default function ProjectDetail() {
                     onTaskClick={handleTaskClick}
                     onTaskUpdated={() => fetchData(true)}
                     tasks={activeGroup.tasks}
+                    projectId={project.id}
+                    categoryId={activeCategoryId!}
                   />
                 )}
               </div>
@@ -877,24 +896,6 @@ export default function ProjectDetail() {
 
             {/* [4] Assignee Load Panel */}
             <AssigneeLoadPanel tasks={tasks} />
-
-            {/* [5] Description — collapsible */}
-            <Card className="rounded-[2.5rem] border-none bg-white shadow-xl shadow-slate-200/50 overflow-hidden">
-              <button
-                className="w-full px-6 pt-6 pb-5 flex items-center justify-between text-left"
-                onClick={() => setDescriptionOpen(prev => !prev)}
-              >
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Mô tả dự án</p>
-                <ChevronDown className={cn("h-4 w-4 text-slate-300 transition-transform duration-200", descriptionOpen && "rotate-180")} />
-              </button>
-              {descriptionOpen && (
-                <CardContent className="px-6 pb-6 pt-0">
-                  <p className="text-sm text-slate-600 leading-relaxed font-medium italic">
-                    {project.description || 'Không có mô tả chi tiết cho project này.'}
-                  </p>
-                </CardContent>
-              )}
-            </Card>
           </div>
         </div>
       </div>
@@ -1000,9 +1001,9 @@ export default function ProjectDetail() {
 
       {editingTask && (
         <EditTaskDialog
-          task={editingTask}
+          task={editingTask as Task}
           open={isEditTaskOpen}
-          onOpenChange={(open) => {
+          onOpenChange={(open: boolean) => {
             setIsEditTaskOpen(open)
             if (!open) setEditingTaskId(null)
           }}

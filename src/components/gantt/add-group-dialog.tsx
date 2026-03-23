@@ -52,9 +52,7 @@ export function AddGroupDialog({ projectId, categoryId, onGroupCreated, trigger 
 
     setLoading(true)
     try {
-      const finalName = selectedTemplateId 
-        ? templates.find(t => t.id === selectedTemplateId)?.name 
-        : name
+      const finalName = name.trim() || templates.find(t => t.id === selectedTemplateId)?.name || ''
 
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error("Not logged in")
@@ -144,7 +142,6 @@ export function AddGroupDialog({ projectId, categoryId, onGroupCreated, trigger 
                     type="button"
                     onClick={() => {
                         setSelectedTemplateId(t.id)
-                        setName('')
                     }}
                     className={cn(
                         "flex items-center justify-between px-5 py-5 rounded-[1.8rem] text-[10px] font-black uppercase tracking-widest transition-all border-2 text-left group/btn",
@@ -186,7 +183,6 @@ export function AddGroupDialog({ projectId, categoryId, onGroupCreated, trigger 
               value={name}
               onChange={(e) => {
                 setName(e.target.value)
-                setSelectedTemplateId(null)
               }}
               className="rounded-[1.5rem] h-14 bg-slate-50/50 border-none focus-visible:ring-primary/20 font-black text-slate-800 placeholder:text-slate-300 px-6 shadow-inner"
             />

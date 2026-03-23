@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import { NewTaskDialog } from '@/components/tasks/new-task-dialog'
 import { Task } from '@/hooks/use-tasks'
 import {
   Dialog,
@@ -11,7 +12,7 @@ import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area'
 import { format, addDays, eachDayOfInterval, isSameDay, differenceInCalendarDays, differenceInDays, startOfDay } from 'date-fns'
 import { vi } from 'date-fns/locale'
 import { cn } from '@/lib/utils'
-import { LayoutGrid, Calendar as CalendarIcon, Clock, Flag, ChevronDown } from 'lucide-react'
+import { LayoutGrid, Calendar as CalendarIcon, Clock, Flag, ChevronDown, Plus } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,13 +34,16 @@ interface GroupTimelineModalProps {
   onOpenChange: (open: boolean) => void
   onTaskClick?: (taskId: string) => void
   onTaskUpdated?: () => void
+  projectId: string
+  categoryId: string
 }
 
-export function GroupTimelineModal({ group, tasks: initialTasks, open, onOpenChange, onTaskClick, onTaskUpdated }: GroupTimelineModalProps) {
+export function GroupTimelineModal({ group, tasks: initialTasks, open, onOpenChange, onTaskClick, onTaskUpdated, projectId, categoryId }: GroupTimelineModalProps) {
   const [localTasks, setLocalTasks] = useState<Task[]>(initialTasks)
   const [resizingTaskId, setResizingTaskId] = useState<string | null>(null)
   const [dragType, setDragType] = useState<'move' | 'left' | 'right' | null>(null)
   const [isPendingSync, setIsPendingSync] = useState(false)
+  const [isAddingTask, setIsAddingTask] = useState(false)
   const [snapPreview, setSnapPreview] = useState<{ taskId: string, left: number, width: number } | null>(null)
   const dragStartPos = useRef<{ x: number, start_date: Date, deadline: Date } | null>(null)
   const activeDragRef = useRef<{ id: string, type: 'move' | 'left' | 'right', startX: number, start: Date, deadline: Date, initialWidth: number } | null>(null)
@@ -292,13 +296,26 @@ export function GroupTimelineModal({ group, tasks: initialTasks, open, onOpenCha
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[95vw] w-[1300px] sm:max-w-[95vw] sm:w-[1300px] max-h-[90dvh] rounded-[2.5rem] border-none glass-premium p-0 overflow-hidden flex flex-col shadow-2xl animate-in zoom-in-95 duration-500">
+      <DialogContent className={cn(
+        "max-w-[95vw] w-[1300px] sm:max-w-[95vw] sm:w-[1300px] max-h-[90dvh] rounded-[2.5rem] border-none glass-premium p-0 overflow-hidden flex flex-col shadow-2xl animate-in zoom-in-95 duration-500",
+        isAddingTask && "opacity-0 scale-95 pointer-events-none translate-y-4"
+      )}>
         <DialogHeader className="p-10 pb-6 bg-white/80 border-b border-slate-100/50 backdrop-blur-xl shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-6">
-              <div className="h-16 w-16 rounded-full bg-primary flex items-center justify-center text-white shadow-xl shadow-slate-200">
-                 <LayoutGrid className="h-8 w-8" />
-              </div>
+              <NewTaskDialog 
+                projectId={projectId}
+                initialCategoryId={categoryId}
+                initialTaskGroupId={group.id}
+                onTaskCreated={() => onTaskUpdated?.()}
+                onOpenChange={setIsAddingTask}
+                trigger={
+                  <button className="h-16 w-16 rounded-full bg-primary flex items-center justify-center text-white shadow-xl shadow-primary/30 hover:scale-105 active:scale-95 transition-all cursor-pointer group/addbtn relative overflow-hidden">
+                    <Plus className="h-8 w-8 group-hover/addbtn:scale-110 transition-transform" />
+                    <div className="absolute inset-0 bg-white/20 opacity-0 group-hover/addbtn:opacity-100 transition-opacity" />
+                  </button>
+                }
+              />
               <div>
                 <DialogTitle className="text-3xl font-black text-slate-900 tracking-tight leading-none mb-2">{group.name}</DialogTitle>
                 <div className="flex items-center gap-4">

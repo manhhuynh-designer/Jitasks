@@ -46,12 +46,16 @@ const STATUS_OPTIONS = [
 export function NewTaskDialog({ 
   projectId, 
   initialCategoryId,
+  initialTaskGroupId,
   onTaskCreated,
+  onOpenChange,
   trigger
 }: { 
   projectId: string, 
   initialCategoryId?: string,
+  initialTaskGroupId?: string | null,
   onTaskCreated: () => void,
+  onOpenChange?: (open: boolean) => void,
   trigger?: React.ReactElement
 }) {
   const [open, setOpen] = useState(false)
@@ -59,7 +63,7 @@ export function NewTaskDialog({
   const [description, setDescription] = useState('')
   const [priority, setPriority] = useState('medium')
   const [categoryId, setCategoryId] = useState<string | null>(initialCategoryId || null)
-  const [taskGroupId, setTaskGroupId] = useState<string | null>(null)
+  const [taskGroupId, setTaskGroupId] = useState<string | null>(initialTaskGroupId || null)
   const [categories, setCategories] = useState<{id: string, name: string, color: string}[]>([])
   const [taskGroups, setTaskGroups] = useState<{id: string, name: string}[]>([])
   const [status, setStatus] = useState('todo')
@@ -109,6 +113,10 @@ export function NewTaskDialog({
   useEffect(() => {
     if (initialCategoryId) setCategoryId(initialCategoryId)
   }, [initialCategoryId])
+
+  useEffect(() => {
+    if (initialTaskGroupId) setTaskGroupId(initialTaskGroupId)
+  }, [initialTaskGroupId])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -176,7 +184,10 @@ export function NewTaskDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(val) => {
+      setOpen(val)
+      onOpenChange?.(val)
+    }}>
       <DialogTrigger 
         render={
           trigger || (

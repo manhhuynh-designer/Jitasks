@@ -3,7 +3,7 @@
 import { Task } from '@/hooks/use-tasks'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { GanttChartSquare, Calendar, Flag, Settings, Clock, Zap, CheckCircle2, GripVertical, AlertCircle } from 'lucide-react'
+import { GanttChartSquare, Calendar, Flag, Settings, Clock, Zap, CheckCircle2, GripVertical, AlertCircle, Trash2, MoreVertical } from 'lucide-react'
 import { format, isPast, isToday } from 'date-fns'
 import { cn } from '@/lib/utils'
 import { getDeadlineLevel, DEADLINE_LEVELS } from '@/constants/ui-tokens'
@@ -14,6 +14,15 @@ import {
   useSortable 
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { DeleteGroupDialog } from './delete-group-dialog'
+import { useState } from 'react'
+import { supabase } from '@/lib/supabase'
 
 interface MiniGanttCardProps {
   group: {
@@ -27,6 +36,7 @@ interface MiniGanttCardProps {
   onCardClick?: () => void
   onTaskClick?: (taskId: string) => void
   onEditGroup?: (groupId: string) => void
+  onRefresh?: () => void
 }
 
 const STATUS_STYLES: Record<string, { bg: string, hover: string, text: string, dot: string }> = {
@@ -123,7 +133,8 @@ function DraggableTaskItem({ task, onTaskClick }: { task: Task, onTaskClick?: (i
   )
 }
 
-export function MiniGanttCard({ group, tasks, onExpand, onCardClick, onTaskClick, onEditGroup }: MiniGanttCardProps) {
+export function MiniGanttCard({ group, tasks, onExpand, onCardClick, onTaskClick, onEditGroup, onRefresh }: MiniGanttCardProps) {
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const { setNodeRef, isOver } = useDroppable({
     id: group.id,
     data: {
@@ -208,18 +219,44 @@ export function MiniGanttCard({ group, tasks, onExpand, onCardClick, onTaskClick
             <p className="text-[9px] font-bold text-rose-400 italic uppercase">Set dates to view</p>
           )}
         </div>
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={(e: React.MouseEvent) => {
-              e.stopPropagation()
-              onEditGroup?.(group.id)
-            }}
-            className="h-8 w-8 rounded-xl bg-slate-50 text-slate-400 hover:text-primary hover:bg-primary/10 transition-all"
-          >
-            <Settings className="h-4 w-4" />
-          </Button>
+        <div className="flex items-center gap-1 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-all">
+          <DropdownMenu>
+            <DropdownMenuTrigger render={
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={(e: React.MouseEvent) => {
+                  e.stopPropagation()
+                }}
+                className="h-8 w-8 rounded-xl bg-slate-50 text-slate-400 hover:text-primary hover:bg-primary/10 transition-all"
+              >
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            } />
+            <DropdownMenuContent align="end" className="rounded-2xl border-none shadow-2xl glass-premium p-2 min-w-[160px]">
+              <DropdownMenuItem 
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onEditGroup?.(group.id)
+                }}
+                className="rounded-xl flex items-center gap-2 py-3 px-4 focus:bg-primary/5 focus:text-primary cursor-pointer font-bold text-xs uppercase tracking-widest text-slate-600"
+              >
+                <Settings className="h-4 w-4" />
+                Sửa thông tin
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setIsDeleteDialogOpen(true)
+                }}
+                className="rounded-xl flex items-center gap-2 py-3 px-4 focus:bg-rose-50 focus:text-rose-500 cursor-pointer font-bold text-xs uppercase tracking-widest text-slate-600"
+              >
+                <Trash2 className="h-4 w-4" />
+                Xoá nhóm
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           <Button 
             variant="ghost" 
             size="icon" 
@@ -231,6 +268,17 @@ export function MiniGanttCard({ group, tasks, onExpand, onCardClick, onTaskClick
           >
             <GanttChartSquare className="h-4 w-4" />
           </Button>
+
+          {isDeleteDialogOpen && (
+            <div onClick={e => e.stopPropagation()}>
+              <DeleteGroupDialog 
+                group={group}
+                open={isDeleteDialogOpen}
+                onOpenChange={setIsDeleteDialogOpen}
+                onRefresh={onRefresh || (() => {})}
+              />
+            </div>
+          )}
         </div>
       </CardHeader>
       
