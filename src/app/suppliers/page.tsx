@@ -24,6 +24,10 @@ export default function SuppliersPage() {
   const [editingSupplier, setEditingSupplier] = useState<any>(null)
   const [isEditOpen, setIsEditOpen] = useState(false)
 
+  useEffect(() => {
+    document.title = 'Nhà cung cấp | Jitasks'
+  }, [])
+
   const fetchSuppliers = useCallback(async () => {
     setLoading(true)
     const { data } = await supabase.from('suppliers').select('*, projects(id)').order('name')

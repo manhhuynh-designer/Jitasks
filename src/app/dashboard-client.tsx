@@ -120,10 +120,6 @@ export default function Dashboard() {
   const [isCloneOpen, setIsCloneOpen] = useState(false)
   const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState(false)
 
-  useEffect(() => {
-    document.title = 'Dashboard | Jitasks'
-  }, [])
-
   const handleRefresh = () => {
     refreshProjects()
     refreshTasks()

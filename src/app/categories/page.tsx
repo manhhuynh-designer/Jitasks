@@ -313,6 +313,10 @@ export default function TemplatesOverhaul() {
   const [isAddingGroup, setIsAddingGroup] = useState(false)
   const [newGroupName, setNewGroupName] = useState('')
 
+  useEffect(() => {
+    document.title = 'Giai đoạn | Jitasks'
+  }, [])
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })

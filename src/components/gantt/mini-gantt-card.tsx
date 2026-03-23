@@ -3,9 +3,10 @@
 import { Task } from '@/hooks/use-tasks'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Maximize2, Calendar, Flag, Settings } from 'lucide-react'
-import { format } from 'date-fns'
+import { GanttChartSquare, Calendar, Flag, Settings, Clock, Zap, CheckCircle2 } from 'lucide-react'
+import { format, isPast, isToday } from 'date-fns'
 import { cn } from '@/lib/utils'
+import { getDeadlineLevel, DEADLINE_LEVELS } from '@/constants/ui-tokens'
 
 interface MiniGanttCardProps {
   group: {
@@ -60,6 +61,25 @@ export function MiniGanttCard({ group, tasks, onExpand, onCardClick, onTaskClick
   
   const hasDates = !!(startDate && deadline)
 
+  const health = (() => {
+    const active   = tasks.filter(t => t.status !== 'done')
+    const overdue  = active.filter(t => t.deadline && isPast(new Date(t.deadline)) && !isToday(new Date(t.deadline))).length
+    const critical = active.filter(t => t.priority === 'critical').length
+    const dueToday = active.filter(t => t.deadline && isToday(new Date(t.deadline))).length
+    const done     = tasks.filter(t => t.status === 'done').length
+    const total    = tasks.length
+    const pct      = total > 0 ? Math.round((done / total) * 100) : 0
+    const nearest  = active
+      .filter(t => t.deadline)
+      .sort((a, b) => new Date(a.deadline!).getTime() - new Date(b.deadline!).getTime())[0]
+      ?.deadline ?? null
+    const level    = (overdue > 0 || critical > 0) ? 'alert'
+      : dueToday > 0 ? 'warning'
+      : pct === 100  ? 'done'
+      : 'normal'
+    return { level, overdue, critical, dueToday, done, total, pct, nearest }
+  })()
+
   return (
     <Card 
       onClick={onCardClick}
@@ -73,6 +93,30 @@ export function MiniGanttCard({ group, tasks, onExpand, onCardClick, onTaskClick
           <CardTitle className="text-xs font-black text-slate-800 uppercase tracking-widest truncate max-w-[140px]">
             {group.name}
           </CardTitle>
+          {health.level === 'alert' && (
+            <div className="flex items-center gap-1 mt-1">
+              {health.overdue > 0 && (
+                <span className="inline-flex items-center gap-0.5 text-[8px] font-black px-1.5 py-0.5 rounded-md bg-rose-50 text-rose-500 border border-rose-100">
+                  <Clock className="h-2.5 w-2.5" />{health.overdue} trễ
+                </span>
+              )}
+              {health.critical > 0 && (
+                <span className="inline-flex items-center gap-0.5 text-[8px] font-black px-1.5 py-0.5 rounded-md bg-red-50 text-red-500 border border-red-100">
+                  <Zap className="h-2.5 w-2.5" />{health.critical}
+                </span>
+              )}
+            </div>
+          )}
+          {health.level === 'warning' && (
+            <span className="inline-flex items-center gap-0.5 text-[8px] font-black px-1.5 py-0.5 rounded-md bg-violet-50 text-violet-500 border border-violet-100 mt-1">
+              <Clock className="h-2.5 w-2.5" />Hôm nay
+            </span>
+          )}
+          {health.level === 'done' && (
+            <span className="inline-flex items-center gap-0.5 text-[8px] font-black px-1.5 py-0.5 rounded-md bg-emerald-50 text-emerald-600 border border-emerald-100 mt-1">
+              <CheckCircle2 className="h-2.5 w-2.5" />Hoàn thành
+            </span>
+          )}
           {hasDates ? (
             <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
               {format(startDate!, 'dd/MM/yyyy')} - {format(deadline!, 'dd/MM/yyyy')}
@@ -102,7 +146,7 @@ export function MiniGanttCard({ group, tasks, onExpand, onCardClick, onTaskClick
             }}
             className="h-8 w-8 rounded-xl bg-slate-50 text-slate-400 hover:text-primary hover:bg-primary/10 transition-all"
           >
-            <Maximize2 className="h-4 w-4" />
+            <GanttChartSquare className="h-4 w-4" />
           </Button>
         </div>
       </CardHeader>
@@ -137,7 +181,7 @@ export function MiniGanttCard({ group, tasks, onExpand, onCardClick, onTaskClick
                   </div>
                   {taskDeadline && (
                     <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 shrink-0 ml-2 opacity-60 group-hover/task:opacity-100">
-                      {format(taskDeadline, 'dd MMM')}
+                      {format(taskDeadline, 'dd/MM')}
                     </span>
                   )}
                 </div>
@@ -148,10 +192,36 @@ export function MiniGanttCard({ group, tasks, onExpand, onCardClick, onTaskClick
               <p className="text-[9px] font-black text-slate-200 uppercase tracking-widest">No tasks</p>
             </div>
           )}
+
           {tasks.length > 6 && (
             <p className="text-[8px] font-bold text-slate-300 text-center uppercase tracking-widest pt-2">
               + {tasks.length - 6} more tasks
             </p>
+          )}
+
+          {tasks.length > 0 && (
+            <div className="flex items-center justify-between pt-3 mt-2 border-t border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="h-1.5 w-16 bg-slate-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-primary rounded-full transition-all duration-500"
+                    style={{ width: `${health.pct}%` }} />
+                </div>
+                <span className="text-[9px] font-black text-slate-400 tabular-nums">
+                  {health.done}/{health.total}
+                </span>
+              </div>
+              {health.nearest ? (() => {
+                const { level, label } = getDeadlineLevel(health.nearest)
+                const s = DEADLINE_LEVELS[level as keyof typeof DEADLINE_LEVELS]
+                return (
+                  <span className={cn('text-[9px] font-black px-1.5 py-0.5 rounded-md border', s.bg, s.text, s.border)}>
+                    {label}
+                  </span>
+                )
+              })() : (
+                <span className="text-[9px] text-slate-200 italic">no deadline</span>
+              )}
+            </div>
           )}
         </div>
       </CardContent>

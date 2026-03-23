@@ -191,6 +191,10 @@ export default function TemplatesPage() {
   const [newGroupNames, setNewGroupNames] = useState<Record<string, string>>({})
   const [isAddingGroupTo, setIsAddingGroupTo] = useState<string | null>(null)
 
+  useEffect(() => {
+    document.title = 'Templates | Jitasks'
+  }, [])
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })

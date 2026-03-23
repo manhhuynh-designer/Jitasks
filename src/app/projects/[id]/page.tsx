@@ -36,9 +36,10 @@ import {
   Maximize2,
   Image as ImageIcon
 } from 'lucide-react'
-import { format } from 'date-fns'
+import { format, isPast, isToday, isBefore, addDays } from 'date-fns'
 import { vi } from 'date-fns/locale'
 import { cn } from '@/lib/utils'
+import { UpcomingTasksStrip } from '@/components/analytics/upcoming-tasks-strip'
 import { EditProjectDialog } from '@/components/projects/edit-project-dialog'
 import { NewTaskDialog } from '@/components/tasks/new-task-dialog'
 import { MiniGanttCard } from '@/components/gantt/mini-gantt-card'
@@ -100,6 +101,13 @@ export default function ProjectDetail() {
   const [isUpdateCoverOpen, setIsUpdateCoverOpen] = useState(false)
   const [coverUrl, setCoverUrl] = useState(project?.cover_url || '')
   const [updatingCover, setUpdatingCover] = useState(false)
+  const [descriptionOpen, setDescriptionOpen] = useState(false)
+
+  useEffect(() => {
+    if (project?.name) {
+      document.title = `${project.name} | Jitasks`
+    }
+  }, [project?.name])
 
   // Sync coverUrl when project changes
   useEffect(() => {
@@ -155,7 +163,7 @@ export default function ProjectDetail() {
       
       const { data: tData } = await supabase
         .from('tasks')
-        .select('*, assignees(full_name), task_groups(id, name)')
+        .select('*, assignees(id, full_name), task_groups(id, name)')
         .eq('project_id', id)
         .order('deadline', { ascending: true })
 
@@ -273,7 +281,7 @@ export default function ProjectDetail() {
             // so we do a silent targeted fetch for this specific task
             const { data } = await supabase
               .from('tasks')
-              .select('*, assignees(full_name), task_groups(id, name)')
+              .select('*, assignees(id, full_name), task_groups(id, name)')
               .eq('id', payload.new.id)
               .single()
             
@@ -455,7 +463,7 @@ export default function ProjectDetail() {
                     </div>
                     <div>
                       <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 leading-none mb-1">Created At</p>
-                      <p className="font-bold text-slate-800">{format(new Date(project.created_at), 'dd MMM yyyy')}</p>
+                      <p className="font-bold text-slate-800">{format(new Date(project.created_at), 'dd/MM/yyyy')}</p>
                     </div>
                   </div>
                 </div>
@@ -556,134 +564,170 @@ export default function ProjectDetail() {
               </div>
            </div>
 
-                    {(() => {
-                      const activeGroup = groups.find((g: any) => g.id === expandedGroupId)
-                      
-                      if (groups.length === 0) {
-                        return (
-                          <div className="py-20 text-center glass-premium rounded-[2.5rem] border-dashed border-2 border-slate-200 flex flex-col items-center gap-4">
-                            <div className="h-16 w-16 rounded-[2rem] bg-slate-50 flex items-center justify-center">
-                              <AlertCircle className="h-8 w-8 text-slate-200" />
-                            </div>
-                            <div>
-                              <p className="font-black text-slate-400 uppercase tracking-widest text-xs">No tasks found</p>
-                              <p className="text-slate-400 text-sm font-medium mt-1">Bắt đầu bằng cách thêm task mới.</p>
-                            </div>
-                          </div>
-                        )
-                      }
+          {(() => {
+            const activeGroup = groups.find((g: any) => g.id === expandedGroupId)
+            
+            if (groups.length === 0) {
+              return (
+                <div className="py-20 text-center glass-premium rounded-[2.5rem] border-dashed border-2 border-slate-200 flex flex-col items-center gap-4">
+                  <div className="h-16 w-16 rounded-[2rem] bg-slate-50 flex items-center justify-center">
+                    <AlertCircle className="h-8 w-8 text-slate-200" />
+                  </div>
+                  <div>
+                    <p className="font-black text-slate-400 uppercase tracking-widest text-xs">No tasks found</p>
+                    <p className="text-slate-400 text-sm font-medium mt-1">Bắt đầu bằng cách thêm task mới.</p>
+                  </div>
+                </div>
+              )
+            }
 
-                      return (
-                        <div key={activeCategoryId} className="space-y-12 animate-in fade-in slide-in-from-bottom-6 duration-700 ease-out">
-                          {/* Grid of Mini Gantt Cards */}
-                          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
-                            {groups.map(group => (
-                              <MiniGanttCard 
-                                key={group.id}
-                                group={group as any}
-                                tasks={group.tasks}
-                                onExpand={(id) => setExpandedGroupId(id)}
-                                onCardClick={() => setExpandedGroupId(group.id)}
-                                onTaskClick={handleTaskClick}
-                                onEditGroup={(id) => setEditingGroupId(id)}
-                              />
-                            ))}
-                          </div>
+            return (
+              <div key={activeCategoryId} className="space-y-12 animate-in fade-in slide-in-from-bottom-6 duration-700 ease-out">
+                {/* Grid of Mini Gantt Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+                  {groups.map(group => (
+                    <MiniGanttCard 
+                      key={group.id}
+                      group={group as any}
+                      tasks={group.tasks}
+                      onExpand={(id) => setExpandedGroupId(id)}
+                      onCardClick={() => setExpandedGroupId(group.id)}
+                      onTaskClick={handleTaskClick}
+                      onEditGroup={(id) => setEditingGroupId(id)}
+                    />
+                  ))}
+                </div>
 
-                          {/* Full Timeline Modal */}
-                          {expandedGroupId && activeGroup && (
-                            <GroupTimelineModal 
-                              open={!!expandedGroupId}
-                              onOpenChange={(open) => !open && setExpandedGroupId(null)}
-                              group={activeGroup as any}
-                              onTaskClick={handleTaskClick}
-                              onTaskUpdated={() => fetchData(true)}
-                              tasks={activeGroup.tasks}
-                            />
-                          )}
-                        </div>
-                      )
-                    })()}
+                {/* Full Timeline Modal */}
+                {expandedGroupId && activeGroup && (
+                  <GroupTimelineModal 
+                    open={!!expandedGroupId}
+                    onOpenChange={(open) => !open && setExpandedGroupId(null)}
+                    group={activeGroup as any}
+                    onTaskClick={handleTaskClick}
+                    onTaskUpdated={() => fetchData(true)}
+                    tasks={activeGroup.tasks}
+                  />
+                )}
+              </div>
+            )
+          })()}
         </div>
 
-        <div className="lg:col-span-4 space-y-10">
-           <div className="space-y-6">
-              <h3 className="text-xl font-black text-slate-800 tracking-tight">Project Summary</h3>
-              
-              {/* Progress Card */}
-              <Card className="rounded-[2.5rem] border-none glass-premium overflow-hidden">
-                <CardContent className="p-8">
-                   <div className="flex items-center justify-between mb-6">
-                      <div className="space-y-1">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Completion</p>
-                        <h4 className="text-3xl font-black text-primary tracking-tight">{progress}%</h4>
+        <div className="lg:col-span-4">
+          <div className="space-y-6">
+            <h3 className="text-xl font-black text-slate-800 tracking-tight">Project Summary</h3>
+
+            {/* [1] PROGRESS CARD */}
+            <Card className="rounded-[2.5rem] border-none glass-premium overflow-hidden">
+              <CardContent className="p-8">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Completion</p>
+                    <h4 className="text-3xl font-black text-primary tracking-tight">{progress}%</h4>
+                  </div>
+                  <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center">
+                    <CheckCircle2 className="h-7 w-7 text-primary" />
+                  </div>
+                </div>
+                <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-primary transition-all duration-700 ease-out shadow-lg shadow-primary/20"
+                    style={{ width: `${progress}%` }} />
+                </div>
+                <p className="mt-4 text-[10px] font-black uppercase tracking-widest text-slate-400 flex justify-between">
+                  <span>{completedTasks} tasks done</span>
+                  <span>{tasks.length} total</span>
+                </p>
+
+                {/* ✅ MỚI: Mini Stats Row */}
+                {tasks.length > 0 && (() => {
+                  const overdue    = tasks.filter(t => t.status !== 'done' && t.deadline && isPast(new Date(t.deadline)) && !isToday(new Date(t.deadline))).length
+                  const dueToday   = tasks.filter(t => t.status !== 'done' && t.deadline && isToday(new Date(t.deadline))).length
+                  const inProgress = tasks.filter(t => t.status === 'inprogress').length
+                  return (
+                    <div className="mt-5 grid grid-cols-3 gap-3">
+                      <div className="bg-blue-50 rounded-2xl p-3 text-center">
+                        <p className="text-lg font-black text-blue-600 leading-none">{inProgress}</p>
+                        <p className="text-[9px] font-black uppercase tracking-widest text-blue-400 mt-1">Đang làm</p>
                       </div>
-                      <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center">
-                        <CheckCircle2 className="h-7 w-7 text-primary" />
+                      <div className={cn("rounded-2xl p-3 text-center", dueToday > 0 ? "bg-violet-50" : "bg-slate-50")}>
+                        <p className={cn("text-lg font-black leading-none", dueToday > 0 ? "text-violet-600" : "text-slate-400")}>
+                          {dueToday > 0 ? dueToday : '–'}
+                        </p>
+                        <p className={cn("text-[9px] font-black uppercase tracking-widest mt-1", dueToday > 0 ? "text-violet-400" : "text-slate-300")}>
+                          Hôm nay
+                        </p>
                       </div>
-                   </div>
-                   <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-primary transition-all duration-700 ease-out shadow-lg shadow-primary/20" 
-                        style={{ width: `${progress}%` }} 
-                      />
-                   </div>
-                   <p className="mt-4 text-[10px] font-black uppercase tracking-widest text-slate-400 flex justify-between">
-                     <span>{completedTasks} tasks done</span>
-                     <span>{tasks.length} total</span>
-                   </p>
+                      <div className={cn("rounded-2xl p-3 text-center", overdue > 0 ? "bg-rose-50" : "bg-slate-50")}>
+                        <p className={cn("text-lg font-black leading-none", overdue > 0 ? "text-rose-500" : "text-slate-400")}>
+                          {overdue > 0 ? overdue : '✓'}
+                        </p>
+                        <p className={cn("text-[9px] font-black uppercase tracking-widest mt-1", overdue > 0 ? "text-rose-400" : "text-slate-300")}>
+                          Quá hạn
+                        </p>
+                      </div>
+                    </div>
+                  )
+                })()}
 
-                   {categories.length > 0 && tasks.length > 0 && (
-                     <div className="mt-6 space-y-3 pt-6 border-t border-slate-100/50">
-                       <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Tasks by Stage</p>
-                       {categories.map(cat => {
-                         const catTasks = tasks.filter(t => t.category_id === cat.id || (!t.category_id && cat.id === categories[0]?.id))
-                         if (catTasks.length === 0) return null
-                         const catDone = catTasks.filter(t => t.status === 'done').length
-                         
-                         return (
-                           <div key={cat.id} className="flex items-center justify-between text-xs font-bold">
-                             <div className="flex items-center gap-2 text-slate-600">
-                               <div className={cn("h-2 w-2 rounded-full", cat.color)} />
-                               {cat.name}
-                             </div>
-                             <span className="text-slate-400">
-                               {catDone} / {catTasks.length}
-                             </span>
-                           </div>
-                         )
-                       })}
-                     </div>
-                   )}
-                </CardContent>
-              </Card>
+                {/* Tasks by Stage */}
+                {categories.length > 0 && tasks.length > 0 && (
+                  <div className="mt-6 space-y-3 pt-6 border-t border-slate-100/50">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Tasks by Stage</p>
+                    {categories.map(cat => {
+                      const catTasks = tasks.filter(t => t.category_id === cat.id || (!t.category_id && cat.id === categories[0]?.id))
+                      if (catTasks.length === 0) return null
+                      const catDone = catTasks.filter(t => t.status === 'done').length
+                      return (
+                        <div key={cat.id} className="flex items-center justify-between text-xs font-bold">
+                          <div className="flex items-center gap-2 text-slate-600">
+                            <div className={cn("h-2 w-2 rounded-full", cat.color)} />{cat.name}
+                          </div>
+                          <span className="text-slate-400">{catDone} / {catTasks.length}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
-              <AllStagesGroupOverview
-                categories={categories}
-                taskGroups={taskGroups}
-                tasks={tasks}
-                activeCategoryId={activeCategoryId}
-                onGroupClick={(groupId, categoryId) => {
-                  setActiveCategoryId(categoryId)
-                  setExpandedGroupId(groupId)
-                }}
-              />
+            {/* [2] Upcoming Tasks Strip */}
+            <UpcomingTasksStrip tasks={tasks} onTaskClick={handleTaskClick} />
 
-              {/* Info Card */}
-              <Card className="rounded-[2.5rem] border-none bg-white shadow-xl shadow-slate-200/50">
-                <CardHeader className="pb-2 px-8 pt-8">
-                  <CardTitle className="text-[10px] font-black uppercase tracking-widest text-slate-400">Description</CardTitle>
-                </CardHeader>
-                <CardContent className="px-8 pb-8">
+            {/* [3] All Stages Group Overview */}
+            <AllStagesGroupOverview
+              categories={categories}
+              taskGroups={taskGroups}
+              tasks={tasks}
+              activeCategoryId={activeCategoryId}
+              onGroupClick={(groupId, categoryId) => {
+                setActiveCategoryId(categoryId)
+                setExpandedGroupId(groupId)
+              }}
+            />
+
+            {/* [4] Assignee Load Panel */}
+            <AssigneeLoadPanel tasks={tasks} />
+
+            {/* [5] Description — collapsible */}
+            <Card className="rounded-[2.5rem] border-none bg-white shadow-xl shadow-slate-200/50 overflow-hidden">
+              <button
+                className="w-full px-6 pt-6 pb-5 flex items-center justify-between text-left"
+                onClick={() => setDescriptionOpen(prev => !prev)}
+              >
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Mô tả dự án</p>
+                <ChevronDown className={cn("h-4 w-4 text-slate-300 transition-transform duration-200", descriptionOpen && "rotate-180")} />
+              </button>
+              {descriptionOpen && (
+                <CardContent className="px-6 pb-6 pt-0">
                   <p className="text-sm text-slate-600 leading-relaxed font-medium italic">
                     {project.description || 'Không có mô tả chi tiết cho project này.'}
                   </p>
                 </CardContent>
-              </Card>
-
-              {/* ✅ NEW: Assignee Panel — added after Description Card */}
-              <AssigneeLoadPanel tasks={tasks} />
-           </div>
+              )}
+            </Card>
+          </div>
         </div>
       </div>
 

@@ -36,6 +36,10 @@ export default function ProjectsPage() {
   const [isTaskDetailOpen, setIsTaskDetailOpen] = useState(false)
 
   useEffect(() => {
+    document.title = 'Dự án | Jitasks'
+  }, [])
+
+  useEffect(() => {
     const fetchCats = async () => {
       const { data } = await supabase.from('project_categories').select('id, name')
       if (data) setCategories(data)

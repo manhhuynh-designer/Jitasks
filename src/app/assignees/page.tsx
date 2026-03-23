@@ -25,6 +25,10 @@ export default function AssigneesPage() {
   const [editingAssignee, setEditingAssignee] = useState<any>(null)
   const [isEditOpen, setIsEditOpen] = useState(false)
 
+  useEffect(() => {
+    document.title = 'Nhân sự | Jitasks'
+  }, [])
+
   const fetchAssignees = useCallback(async () => {
     setLoading(true)
     // Lấy thông tin nhân sự kèm theo các task để đếm số project

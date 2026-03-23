@@ -18,7 +18,9 @@ High-performance project management with a premium UI, focusing on operational e
   - **Filtering**: Centralized logic in `src/lib/` (e.g., `priority-utils.ts`). Project filtering aligns with database ENUMs.
 - **UI System**:
   - **Glassmorphism**: `glass-premium` for consistent translucent surfaces.
-  - **Dialog Design**: High-end consistency across `EditTaskDialog`, `NewTemplateDialog`, and `NewSupplierDialog` using premium typography and glass effects.
+  - **Dialog Design**: High-end consistency across `EditTaskDialog`, `NewTemplateDialog`, and `NewSupplierDialog`. 
+    - **Responsiveness**: Dialogs use `max-h-[90vh]` and `overflow-y-auto` to ensure usability on smaller screens.
+    - **Interaction Pattern**: Uses `@base-ui/react` style `render` props (e.g., in `PopoverTrigger`) to avoid nested `<button>` hydration errors.
   - **Bleed Effects**: Projects detail page uses a full-bleed cover image sitting behind the global header for a modern aesthetic.
 
 ## 📂 Feature Deep Dive
@@ -42,8 +44,8 @@ High-performance project management with a premium UI, focusing on operational e
 
 ### 4. Management & Templates
 - **Task Templates**: Managed via `src/components/templates/new-template-dialog.tsx`. Fully consistent with premium dialog design system.
+- **Email Templates (`src/app/email-templates/`)**: Centralized repository for reusable communication templates. Features bulk actions (delete), categorization (Supplier/Internal), and real-time synchronization.
 - **Assignees & Suppliers**: Core relational entities linking personnel and partners to project workloads.
-- **Debug Importer**: Local-only facility for complex JSON data ingestion.
 
 ## 🗄️ Core File Mapping
 
@@ -58,6 +60,7 @@ High-performance project management with a premium UI, focusing on operational e
 | `src/app/assignees/page.tsx` | Assignee Management Page |
 | `src/app/categories/page.tsx` | Stage/Category Management Page |
 | `src/app/templates/page.tsx` | Task Template Management Page |
+| `src/app/email-templates/page.tsx` | Email Template Management Page |
 | **Gantt & Visualization** | |
 | `src/components/gantt/mini-gantt-card.tsx` | Project timeline preview on Dashboard/Details |
 | `src/components/gantt/group-timeline-modal.tsx` | Detailed Gantt Chart View |
@@ -77,7 +80,6 @@ High-performance project management with a premium UI, focusing on operational e
 | `src/hooks/use-auth.ts` | Supabase Auth State Wrapper |
 | `src/lib/priority-utils.ts` | Priority Icons & Color Definitions |
 | `supabase/schema.sql` | SSOT for Database Modeling & RLS (v2.2) |
-| `src/app/debug/import/page.tsx` | Local debug tool for uploading complex JSON data |
 
 ## 🔑 Key SQL Relations
 - `projects.cover_url` ➡️ Public URL for project header backgrounds.
@@ -85,4 +87,4 @@ High-performance project management with a premium UI, focusing on operational e
 - `projects.status` (text) matches `project_categories.name` (text) for UI color/logic matching.
 
 ---
-*Last Updated: 2026-03-22*
+*Last Updated: 2026-03-23*

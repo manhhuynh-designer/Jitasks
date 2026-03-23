@@ -1,19 +1,10 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
+import { isPast, isToday } from 'date-fns'
 import { cn } from '@/lib/utils'
-import { LABEL_XS } from '@/constants/ui-tokens'
-import { ChevronRight } from 'lucide-react'
-
-interface GroupStats {
-  id: string
-  name: string
-  category_id: string
-  total: number
-  done: number
-  inprogress: number
-  todo: number
-}
+import { Card, CardContent } from '@/components/ui/card'
+import { getDeadlineLevel, DEADLINE_LEVELS } from '@/constants/ui-tokens'
 
 interface AllStagesGroupOverviewProps {
   categories: Array<{ id: string; name: string; color: string }>
@@ -23,13 +14,16 @@ interface AllStagesGroupOverviewProps {
     category_id: string
   }>
   tasks: Array<{
+    id: string
     task_group_id: string | null
     category_id: string | null
     status: 'todo' | 'inprogress' | 'pending' | 'done'
+    priority: string
+    deadline: string | null
     name: string
   }>
   activeCategoryId: string | null
-  onGroupClick?: (groupId: string, categoryId: string) => void
+  onGroupClick: (groupId: string, categoryId: string) => void
 }
 
 export function AllStagesGroupOverview({
@@ -39,180 +33,101 @@ export function AllStagesGroupOverview({
   activeCategoryId,
   onGroupClick,
 }: AllStagesGroupOverviewProps) {
-  const [openCats, setOpenCats] = useState<Set<string>>(new Set(categories.map(c => c.id)))
+  
+  const activeCategory = categories.find(c => c.id === activeCategoryId)
 
-  const statsByCategory = useMemo(() => {
-    const result = categories.map(cat => {
-      // 1. Groups in this category
-      const groups = taskGroups
-        .filter(g => g.category_id === cat.id)
-        .map(group => {
-          const groupTasks = tasks.filter(t => t.task_group_id === group.id)
-          const stats = groupTasks.reduce((acc, t) => {
-            acc.total++
-            if (t.status === 'done') acc.done++
-            else if (t.status === 'inprogress') acc.inprogress++
-            else acc.todo++
-            return acc
-          }, { total: 0, done: 0, inprogress: 0, todo: 0 })
+  const activeGroups = useMemo(() => taskGroups
+    .filter(g => g.category_id === activeCategoryId)
+    .map(g => {
+      const gt         = tasks.filter(t => t.task_group_id === g.id)
+      const done       = gt.filter(t => t.status === 'done').length
+      const total      = gt.length
+      const inprogress = gt.filter(t => t.status === 'inprogress').length
+      const overdue    = gt.filter(t => t.status !== 'done' && t.deadline && isPast(new Date(t.deadline)) && !isToday(new Date(t.deadline))).length
+      const critical   = gt.filter(t => t.priority === 'critical' && t.status !== 'done').length
+      const nearest    = gt.filter(t => t.status !== 'done' && t.deadline)
+        .sort((a, b) => new Date(a.deadline!).getTime() - new Date(b.deadline!).getTime())[0]?.deadline ?? null
+      return { ...g, done, total, inprogress, overdue, critical, nearest }
+    })
+    .sort((a, b) => {
+      const aU = (a.overdue + a.critical > 0) ? 0 : 1
+      const bU = (b.overdue + b.critical > 0) ? 0 : 1
+      if (aU !== bU) return aU - bU
+      return b.inprogress - a.inprogress
+    })
+  , [taskGroups, activeCategoryId, tasks])
 
-          return {
-            ...group,
-            ...stats
-          }
-        })
-      
-      // 2. Ungrouped tasks in this category
-      const ungroupedTasks = tasks.filter(t => 
-        t.category_id === cat.id && 
-        (!t.task_group_id || !taskGroups.find(g => g.id === t.task_group_id))
-      )
-
-      const ungroupedStats = ungroupedTasks.reduce((acc, t) => {
-        acc.total++
-        if (t.status === 'done') acc.done++
-        else if (t.status === 'inprogress') acc.inprogress++
-        else acc.todo++
-        return acc
-      }, { total: 0, done: 0, inprogress: 0, todo: 0 })
-
-      return {
-        ...cat,
-        groups,
-        ungrouped: ungroupedStats,
-        hasContent: groups.length > 0 || ungroupedTasks.length > 0,
-        totalItems: groups.length + (ungroupedTasks.length > 0 ? 1 : 0)
-      }
-    }).filter(cat => cat.hasContent)
-
-    return result
-  }, [categories, taskGroups, tasks])
-
-  const toggleCat = (id: string) => {
-    const next = new Set(openCats)
-    if (next.has(id)) next.delete(id)
-    else next.add(id)
-    setOpenCats(next)
-  }
-
-  if (statsByCategory.length === 0) return null
-
-  const totalItems = statsByCategory.reduce((sum, c) => sum + c.totalItems, 0)
+  if (activeGroups.length === 0) return null
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between px-2">
-        <span className={LABEL_XS}>Tất cả giai đoạn</span>
-        <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
-          {totalItems} mục
-        </span>
-      </div>
+    <Card className="rounded-[2.5rem] border-none bg-white shadow-xl shadow-slate-200/50 overflow-hidden">
+      <CardContent className="p-0">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 pt-6 pb-3">
+          <div className="flex items-center gap-2">
+            {activeCategory?.color && (
+              <div className={cn("h-2 w-2 rounded-full", activeCategory.color)} />
+            )}
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+              Nhóm — {activeCategory?.name ?? 'Giai đoạn hiện tại'}
+            </p>
+          </div>
+          <span className="text-[10px] font-bold text-slate-300">{activeGroups.length} nhóm</span>
+        </div>
 
-      <div className="space-y-3">
-        {statsByCategory.map((cat) => {
-          const isOpen = openCats.has(cat.id)
-          const isActive = cat.id === activeCategoryId
-
-          return (
-            <div key={cat.id} className="space-y-2">
-              <button 
-                onClick={() => toggleCat(cat.id)}
-                className={cn(
-                  "w-full flex items-center justify-between p-2 transition-all",
-                  isActive ? "bg-primary/5 rounded-xl px-3" : "px-3"
-                )}
-              >
-                <div className="flex items-center gap-2">
-                  <div className={cn("h-1.5 w-1.5 rounded-full", cat.color)} />
-                  <span className={cn(
-                    "text-xs font-black uppercase tracking-wider",
-                    isActive ? "text-primary" : "text-slate-600"
-                  )}>
-                    {cat.name}
-                  </span>
-                  <span className="text-[10px] font-bold text-slate-300">
-                    {cat.totalItems}
-                  </span>
-                </div>
-                <ChevronRight className={cn(
-                  "h-3.5 w-3.5 text-slate-300 transition-transform duration-300",
-                  isOpen && "rotate-90"
-                )} />
-              </button>
-
-              <div 
-                className={cn(
-                  "overflow-hidden transition-all duration-300 ease-in-out",
-                  isOpen ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0 pointer-events-none"
-                )}
-              >
-                <div className="space-y-1 px-3">
-                  {cat.groups.map((group) => {
-                    const donePct = group.total > 0 ? (group.done / group.total) * 100 : 0
-                    const inprogressPct = group.total > 0 ? (group.inprogress / group.total) * 100 : 0
-
-                    return (
-                      <div 
-                        key={group.id}
-                        onClick={() => onGroupClick?.(group.id, group.category_id)}
-                        className="flex items-center justify-between h-10 px-2 rounded-xl hover:bg-white cursor-pointer group transition-all"
-                      >
-                        <span className="text-xs font-bold text-slate-500 truncate max-w-[120px] group-hover:text-slate-800 transition-colors">
-                          {group.name}
-                        </span>
-                        
-                        <div className="flex items-center gap-3 shrink-0">
-                          <div className="w-[80px] h-1.5 bg-slate-100 rounded-full overflow-hidden flex">
-                            <div 
-                              className="h-full bg-emerald-400"
-                              style={{ width: `${donePct}%` }}
-                            />
-                            <div 
-                              className="h-full bg-blue-400"
-                              style={{ width: `${inprogressPct}%` }}
-                            />
-                          </div>
-                          <span className="text-[10px] font-bold text-slate-400 w-8 text-right">
-                            {group.done}/{group.total}
-                          </span>
-                        </div>
-                      </div>
-                    )
-                  })}
-
-                  {/* Ungrouped section if present */}
-                  {cat.ungrouped.total > 0 && (
-                    <div 
-                      onClick={() => onGroupClick?.('ungrouped', cat.id)}
-                      className="flex items-center justify-between h-10 px-2 rounded-xl hover:bg-white cursor-pointer group transition-all"
-                    >
-                      <span className="text-xs font-bold text-slate-400 italic group-hover:text-slate-800 transition-colors">
-                        Chưa phân nhóm
-                      </span>
-                      
-                      <div className="flex items-center gap-3 shrink-0">
-                        <div className="w-[80px] h-1.5 bg-slate-100 rounded-full overflow-hidden flex">
-                          <div 
-                            className="h-full bg-emerald-400"
-                            style={{ width: `${(cat.ungrouped.done / cat.ungrouped.total) * 100}%` }}
-                          />
-                          <div 
-                            className="h-full bg-blue-400"
-                            style={{ width: `${(cat.ungrouped.inprogress / cat.ungrouped.total) * 100}%` }}
-                          />
-                        </div>
-                        <span className="text-[10px] font-bold text-slate-400 w-8 text-right">
-                          {cat.ungrouped.done}/{cat.ungrouped.total}
-                        </span>
-                      </div>
-                    </div>
+        {/* Group rows */}
+        <div className="px-3 pb-4 space-y-0.5">
+          {activeGroups.map(g => (
+            <button
+              key={g.id}
+              onClick={() => onGroupClick(g.id, activeCategoryId!)}
+              className="w-full text-left px-3 py-2.5 rounded-2xl hover:bg-slate-50 transition-all active:scale-[0.99]"
+            >
+              {/* Row 1: badges + tên + fraction */}
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  {g.overdue > 0 && (
+                    <span className="text-[8px] font-black px-1 py-0.5 rounded bg-rose-50 text-rose-500 border border-rose-100 shrink-0">
+                      {g.overdue} trễ
+                    </span>
                   )}
+                  {g.critical > 0 && g.overdue === 0 && (
+                    <span className="text-[8px] font-black px-1 py-0.5 rounded bg-red-50 text-red-500 border border-red-100 shrink-0">
+                      ⚡{g.critical}
+                    </span>
+                  )}
+                  <span className="text-sm font-semibold text-slate-700 truncate">{g.name}</span>
                 </div>
+                <span className="text-[10px] font-black text-slate-400 tabular-nums shrink-0">
+                  {g.done}/{g.total}
+                </span>
               </div>
-            </div>
-          )
-        })}
-      </div>
-    </div>
+
+              {/* Row 2: stacked bar + deadline */}
+              {g.total > 0 && (
+                <div className="flex items-center gap-3 mt-1.5">
+                  <div className="flex h-1 flex-1 rounded-full overflow-hidden bg-slate-100">
+                    <div className="bg-emerald-400 transition-all duration-500" style={{ width: `${(g.done/g.total)*100}%` }} />
+                    <div className="bg-blue-400 transition-all duration-500"    style={{ width: `${(g.inprogress/g.total)*100}%` }} />
+                  </div>
+                  {g.nearest ? (() => {
+                    const { level, label } = getDeadlineLevel(g.nearest)
+                    const s = DEADLINE_LEVELS[level as keyof typeof DEADLINE_LEVELS]
+                    return (
+                      <span className={cn("text-[9px] font-black px-1.5 py-0.5 rounded-md border shrink-0", s.bg, s.text, s.border)}>
+                        {label}
+                      </span>
+                    )
+                  })() : <span className="text-[9px] text-slate-200 shrink-0">–</span>}
+                </div>
+              )}
+              {g.total === 0 && (
+                <p className="text-[10px] text-slate-300 italic mt-0.5">Chưa có task</p>
+              )}
+            </button>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   )
 }

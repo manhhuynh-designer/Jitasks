@@ -24,6 +24,10 @@ export default function EmailTemplatesPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 9
 
+  useEffect(() => {
+    document.title = 'Email Mẫu | Jitasks'
+  }, [])
+
   const fetchTemplates = async () => {
     setLoading(true)
     try {
