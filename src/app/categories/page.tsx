@@ -284,17 +284,19 @@ function GroupCard({
 
         {/* Footer Action */}
         <div className="pt-2 shrink-0">
-            <NewTemplateDialog 
-                onTemplateCreated={onRefresh} 
-                defaultStatus={activeStage.name}
-                defaultCategoryId={activeStage.id}
-                defaultGroupId={isUngrouped ? null : group.id}
-                trigger={
-                   <Button variant="ghost" className="w-full h-11 rounded-2xl border border-dashed border-slate-200 text-slate-400 font-bold text-[11px] uppercase tracking-widest gap-2 hover:bg-primary/5 hover:text-primary hover:border-primary/20 transition-all">
-                      <PlusCircle className="h-4 w-4" /> Thêm nhanh Task
-                   </Button>
-                }
-            />
+            {activeStage?.id && activeStage?.name && (
+                <NewTemplateDialog 
+                    onTemplateCreated={onRefresh} 
+                    defaultStatus={activeStage.name}
+                    defaultCategoryId={activeStage.id}
+                    defaultGroupId={isUngrouped ? null : group.id}
+                    trigger={
+                       <Button variant="ghost" className="w-full h-11 rounded-2xl border border-dashed border-slate-200 text-slate-400 font-bold text-[11px] uppercase tracking-widest gap-2 hover:bg-primary/5 hover:text-primary hover:border-primary/20 transition-all">
+                          <PlusCircle className="h-4 w-4" /> Thêm nhanh Task
+                       </Button>
+                    }
+                />
+            )}
         </div>
       </CardContent>
     </Card>
@@ -333,9 +335,10 @@ export default function TemplatesOverhaul() {
 
       if (catRes.data) {
         setCategories(catRes.data)
-        if (!activeStageId && catRes.data.length > 0) {
-          setActiveStageId(catRes.data[0].id)
-        }
+        setActiveStageId(prev => {
+          if (prev) return prev
+          return catRes.data!.length > 0 ? catRes.data![0].id : null
+        })
       }
       if (groupRes.data) setGroups(groupRes.data)
       if (templateRes.data) setTemplates(templateRes.data)
@@ -350,6 +353,7 @@ export default function TemplatesOverhaul() {
 
   // Filtered data based on active stage
   const activeStage = categories.find(c => c.id === activeStageId)
+  const isStageReady = !!activeStage
   const stageGroups = useMemo(() => groups.filter(g => g.category_id === activeStageId), [groups, activeStageId])
   const stageTemplatesByGroup = useMemo(() => {
       const map: Record<string, TaskTemplate[]> = { ungrouped: [] }
@@ -456,7 +460,8 @@ export default function TemplatesOverhaul() {
           name: newGroupName,
           category_id: activeStageId,
           order_index: maxOrder + 1,
-          created_by: user.id
+          created_by: user.id,
+          project_id: null   // tường minh: đây là template group, không thuộc project nào
         })
 
         if (error) throw error
@@ -567,74 +572,82 @@ export default function TemplatesOverhaul() {
           onDragOver={handleDragOver}
           onDragEnd={handleDragEnd}
         >
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-            {/* Existing Groups */}
-            {stageGroups.map((group) => (
-              <GroupCard
-                key={group.id}
-                group={group}
-                activeStage={activeStage!}
-                templates={stageTemplatesByGroup[group.id] || []}
-                onDeleteGroup={handleDeleteGroup}
-                onUpdateGroup={handleUpdateGroup}
-                onDeleteTemplate={deleteTemplate}
-                onRefresh={fetchData}
-              />
-            ))}
-
-            {/* Ungrouped Tasks */}
-            {activeStage && (
-                <GroupCard
-                    isUngrouped
-                    group={{ id: 'ungrouped', name: 'Tasks chưa phân nhóm' }}
-                    activeStage={activeStage}
-                    templates={stageTemplatesByGroup.ungrouped || []}
-                    onDeleteTemplate={deleteTemplate}
-                    onRefresh={fetchData}
-                />
-            )}
-
-            {/* Add New Group Action */}
-            <div className="space-y-4 h-full">
-                {isAddingGroup ? (
-                    <Card className="rounded-[2.5rem] bg-white border-2 border-primary/20 shadow-2xl p-6 animate-in slide-in-from-top-4 duration-300">
-                         <div className="space-y-4">
-                            <div className="flex items-center gap-3">
-                                <div className="h-8 w-8 rounded-xl bg-primary/10 flex items-center justify-center">
-                                    <Plus className="h-5 w-5 text-primary" />
-                                </div>
-                                <span className="text-xs font-black uppercase tracking-widest text-slate-400">Tạo nhóm mới</span>
-                            </div>
-                            <Input 
-                                autoFocus
-                                placeholder="Tên nhóm task..."
-                                value={newGroupName}
-                                onChange={(e) => setNewGroupName(e.target.value)}
-                                onKeyDown={(e) => e.key === 'Enter' && handleAddGroup()}
-                                className="h-12 border-none bg-slate-50 rounded-2xl font-bold text-slate-800"
-                            />
-                            <div className="flex gap-2">
-                                <Button onClick={handleAddGroup} className="flex-1 rounded-xl h-12 font-black shadow-lg shadow-primary/20">Lưu</Button>
-                                <Button variant="ghost" onClick={() => setIsAddingGroup(false)} className="rounded-xl h-12 font-bold text-slate-400">Hủy</Button>
-                            </div>
-                         </div>
-                    </Card>
-                ) : (
-                    <button 
-                        onClick={() => setIsAddingGroup(true)}
-                        className="group w-full h-[400px] border-4 border-dashed border-slate-200/60 rounded-[3rem] flex flex-col items-center justify-center gap-4 hover:border-primary/30 hover:bg-white transition-all duration-500"
-                    >
-                        <div className="h-16 w-16 rounded-[2rem] bg-slate-100 group-hover:bg-primary/10 flex items-center justify-center group-hover:scale-110 group-hover:rotate-12 transition-all duration-500">
-                             <Plus className="h-8 w-8 text-slate-300 group-hover:text-primary transition-colors" />
-                        </div>
-                        <div className="text-center">
-                            <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-300 group-hover:text-primary transition-colors">Thêm nhóm mới</p>
-                            <p className="text-[10px] text-slate-300 font-medium mt-1">Phân loại template tốt hơn</p>
-                        </div>
-                    </button>
-                )}
+          {!isStageReady ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+              {[1, 2, 3].map(i => (
+                <div key={i} className="h-[400px] rounded-[2.5rem] bg-slate-100 animate-pulse" />
+              ))}
             </div>
-          </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+              {/* Existing Groups */}
+              {stageGroups.map((group) => (
+                <GroupCard
+                  key={group.id}
+                  group={group}
+                  activeStage={activeStage}
+                  templates={stageTemplatesByGroup[group.id] || []}
+                  onDeleteGroup={handleDeleteGroup}
+                  onUpdateGroup={handleUpdateGroup}
+                  onDeleteTemplate={deleteTemplate}
+                  onRefresh={fetchData}
+                />
+              ))}
+
+              {/* Ungrouped Tasks */}
+              {activeStage && (
+                  <GroupCard
+                      isUngrouped
+                      group={{ id: 'ungrouped', name: 'Tasks chưa phân nhóm' }}
+                      activeStage={activeStage}
+                      templates={stageTemplatesByGroup.ungrouped || []}
+                      onDeleteTemplate={deleteTemplate}
+                      onRefresh={fetchData}
+                  />
+              )}
+
+              {/* Add New Group Action */}
+              <div className="space-y-4 h-full">
+                  {isAddingGroup ? (
+                      <Card className="rounded-[2.5rem] bg-white border-2 border-primary/20 shadow-2xl p-6 animate-in slide-in-from-top-4 duration-300">
+                           <div className="space-y-4">
+                              <div className="flex items-center gap-3">
+                                  <div className="h-8 w-8 rounded-xl bg-primary/10 flex items-center justify-center">
+                                      <Plus className="h-5 w-5 text-primary" />
+                                  </div>
+                                  <span className="text-xs font-black uppercase tracking-widest text-slate-400">Tạo nhóm mới</span>
+                              </div>
+                              <Input 
+                                  autoFocus
+                                  placeholder="Tên nhóm task..."
+                                  value={newGroupName}
+                                  onChange={(e) => setNewGroupName(e.target.value)}
+                                  onKeyDown={(e) => e.key === 'Enter' && handleAddGroup()}
+                                  className="h-12 border-none bg-slate-50 rounded-2xl font-bold text-slate-800"
+                              />
+                              <div className="flex gap-2">
+                                  <Button onClick={handleAddGroup} className="flex-1 rounded-xl h-12 font-black shadow-lg shadow-primary/20">Lưu</Button>
+                                  <Button variant="ghost" onClick={() => setIsAddingGroup(false)} className="rounded-xl h-12 font-bold text-slate-400">Hủy</Button>
+                              </div>
+                           </div>
+                      </Card>
+                  ) : (
+                      <button 
+                          onClick={() => setIsAddingGroup(true)}
+                          className="group w-full h-[400px] border-4 border-dashed border-slate-200/60 rounded-[3rem] flex flex-col items-center justify-center gap-4 hover:border-primary/30 hover:bg-white transition-all duration-500"
+                      >
+                          <div className="h-16 w-16 rounded-[2rem] bg-slate-100 group-hover:bg-primary/10 flex items-center justify-center group-hover:scale-110 group-hover:rotate-12 transition-all duration-500">
+                               <Plus className="h-8 w-8 text-slate-300 group-hover:text-primary transition-colors" />
+                          </div>
+                          <div className="text-center">
+                              <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-300 group-hover:text-primary transition-colors">Thêm nhóm mới</p>
+                              <p className="text-[10px] text-slate-300 font-medium mt-1">Phân loại template tốt hơn</p>
+                          </div>
+                      </button>
+                  )}
+              </div>
+            </div>
+          )}
 
           {/* DnD Drag Overlay for smooth visuals */}
           <DragOverlay dropAnimation={{
