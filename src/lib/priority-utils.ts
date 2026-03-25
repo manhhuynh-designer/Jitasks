@@ -44,7 +44,6 @@ export const PRIORITY_OPTIONS: PriorityOption[] = [
     bgLight: 'bg-red-50',
     text: 'text-red-500', 
     icon: Flag,
-    animate: 'animate-pulse'
   },
 ]
 

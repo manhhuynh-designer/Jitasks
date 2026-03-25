@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Calendar, Clock, User, Flag } from 'lucide-react'
 import { format } from 'date-fns'
 import { vi } from 'date-fns/locale'
-import { cn } from '@/lib/utils'
+import { cn, getCategoryColorStyles } from '@/lib/utils'
 import Link from 'next/link'
 import { MoreHorizontal, Pencil, Copy, Trash2 } from 'lucide-react'
 import { getPriorityInfo } from '@/lib/priority-utils'
@@ -71,7 +71,7 @@ export function ProjectCard({
   const completedTasksCount = projectTasks.filter(t => t.status === 'done').length
   const progress = projectTasks.length > 0 ? Math.round((completedTasksCount / projectTasks.length) * 100) : 0
 
-  const statusColor = project.color || 'bg-slate-400'
+  const colorStyles = getCategoryColorStyles(project.color)
 
   return (
     <div className="group relative">
@@ -80,7 +80,10 @@ export function ProjectCard({
           <CardHeader className="p-6 pb-4 border-b border-white/20 bg-white/40 hover:bg-white/60 transition-colors">
             <div className="flex justify-between items-center mb-1 overflow-visible">
               <div className="flex items-center gap-2">
-                <div className={cn("px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest text-white shadow-sm", statusColor)}>
+                <div 
+                  className={cn("px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest text-white shadow-sm", colorStyles.className || 'bg-slate-400')}
+                  style={colorStyles.style}
+                >
                   {project.status}
                 </div>
               </div>

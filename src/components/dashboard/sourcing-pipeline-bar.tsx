@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useEffect, useState } from 'react'
-import { cn } from '@/lib/utils'
+import { cn, getCategoryColorStyles } from '@/lib/utils'
 import { LABEL_XS } from '@/constants/ui-tokens'
 import { Project } from '@/hooks/use-projects'
 
@@ -46,20 +46,25 @@ export function SourcingPipelineBar({ projects, categories, onStageClick }: Sour
 
   if (total === 0) return null
 
-  // Helper to get color class from category name
-  const getStageColor = (status: string) => {
+  // Helper to get color styles from category name
+  const getStageStyles = (status: string) => {
     const cat = categories.find(c => c.name === status)
-    return cat?.color || 'bg-slate-300'
-  }
-
-  // Helper to get text color from bg color class
-  const getStageTextColor = (bg: string) => {
-    if (bg.includes('blue')) return 'text-blue-600'
-    if (bg.includes('emerald')) return 'text-emerald-600'
-    if (bg.includes('amber')) return 'text-amber-600'
-    if (bg.includes('violet')) return 'text-violet-600'
-    if (bg.includes('rose')) return 'text-rose-600'
-    return 'text-slate-500'
+    const styles = getCategoryColorStyles(cat?.color || '')
+    
+    // Determine text color based on background
+    let textColor = 'text-slate-500'
+    const bg = styles.className || ''
+    if (bg.includes('blue')) textColor = 'text-blue-600'
+    else if (bg.includes('emerald')) textColor = 'text-emerald-600'
+    else if (bg.includes('amber')) textColor = 'text-amber-600'
+    else if (bg.includes('violet')) textColor = 'text-violet-600'
+    else if (bg.includes('rose')) textColor = 'text-rose-600'
+    
+    return {
+      className: styles.className || 'bg-slate-300',
+      style: styles.style,
+      textColor
+    }
   }
 
   return (
@@ -73,16 +78,19 @@ export function SourcingPipelineBar({ projects, categories, onStageClick }: Sour
 
       <div className="h-12 w-full rounded-2xl overflow-hidden flex bg-slate-100 shadow-inner">
         {segments.map((seg) => {
-          const bgColor = getStageColor(seg.status)
+          const stageStyles = getStageStyles(seg.status)
           return (
             <div 
               key={seg.status}
               onClick={() => onStageClick?.(seg.status)}
               className={cn(
                 "h-full inline-flex items-center justify-center transition-all duration-700 cursor-pointer overflow-hidden border-r border-white/10 last:border-none hover:brightness-110 active:scale-[0.98]",
-                bgColor
+                stageStyles.className
               )}
-              style={{ width: mounted ? `${seg.displayWidth}%` : '0%' }}
+              style={{ 
+                width: mounted ? `${seg.displayWidth}%` : '0%',
+                ...stageStyles.style
+              }}
             >
               {seg.percentage >= 8 && (
                 <span className="text-white text-[10px] font-black truncate px-2 drop-shadow-sm">
@@ -96,16 +104,18 @@ export function SourcingPipelineBar({ projects, categories, onStageClick }: Sour
 
       <div className="flex flex-wrap gap-4 px-2">
         {segments.map((seg) => {
-          const bgColor = getStageColor(seg.status)
-          const textColor = getStageTextColor(bgColor)
+          const stageStyles = getStageStyles(seg.status)
           return (
             <div 
               key={seg.status} 
               onClick={() => onStageClick?.(seg.status)}
               className="flex items-center gap-2 cursor-pointer group"
             >
-              <div className={cn("h-2.5 w-2.5 rounded-full", bgColor, "group-hover:scale-125 transition-transform")} />
-              <span className={cn("text-[10px] font-bold uppercase tracking-widest", textColor)}>
+              <div 
+                className={cn("h-2.5 w-2.5 rounded-full", stageStyles.className, "group-hover:scale-125 transition-transform")} 
+                style={stageStyles.style}
+              />
+              <span className={cn("text-[10px] font-bold uppercase tracking-widest", stageStyles.textColor)}>
                 {seg.status} <span className="text-slate-300 ml-1">{seg.count}</span>
               </span>
             </div>

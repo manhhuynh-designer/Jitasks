@@ -15,7 +15,12 @@ import {
   Settings2,
   Layers
 } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn, getCategoryColorStyles } from '@/lib/utils'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 import {
   DndContext,
   closestCenter,
@@ -42,17 +47,19 @@ export type ProjectCategory = {
 }
 
 const COLORS = [
-  { name: 'Blue', value: 'bg-blue-500' },
-  { name: 'Amber', value: 'bg-amber-500' },
-  { name: 'Emerald', value: 'bg-emerald-500' },
-  { name: 'Pink', value: 'bg-pink-500' },
-  { name: 'Indigo', value: 'bg-indigo-500' },
-  { name: 'Orange', value: 'bg-orange-500' },
-  { name: 'Slate', value: 'bg-slate-500' },
-  { name: 'Rose', value: 'bg-rose-500' },
-  { name: 'Cyan', value: 'bg-cyan-500' },
-  { name: 'Violet', value: 'bg-violet-500' },
+  { name: 'Blue', value: 'bg-blue-500', hex: '#3b82f6' },
+  { name: 'Amber', value: 'bg-amber-500', hex: '#f59e0b' },
+  { name: 'Emerald', value: 'bg-emerald-500', hex: '#10b981' },
+  { name: 'Pink', value: 'bg-pink-500', hex: '#ec4899' },
+  { name: 'Indigo', value: 'bg-indigo-500', hex: '#6366f1' },
+  { name: 'Orange', value: 'bg-orange-500', hex: '#f97316' },
+  { name: 'Slate', value: 'bg-slate-500', hex: '#64748b' },
+  { name: 'Rose', value: 'bg-rose-500', hex: '#f43f5e' },
+  { name: 'Cyan', value: 'bg-cyan-500', hex: '#06b6d4' },
+  { name: 'Violet', value: 'bg-violet-500', hex: '#8b5cf6' },
 ]
+
+
 
 function SortableItem({ 
   category, 
@@ -82,6 +89,13 @@ function SortableItem({
     isDragging
   } = useSortable({ id: category.id })
 
+  const [stagedColor, setStagedColor] = useState(category.color)
+  const [isPopoverOpen, setIsPopoverOpen] = useState(false)
+
+  useEffect(() => {
+    setStagedColor(category.color)
+  }, [category.color])
+
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -96,7 +110,10 @@ function SortableItem({
             <GripVertical className="h-6 w-6" />
           </div>
           
-          <div className={cn("h-12 w-12 rounded-2xl flex items-center justify-center text-white shadow-lg transition-transform group-hover:scale-110", category.color)}>
+          <div 
+            className={cn("h-12 w-12 rounded-2xl flex items-center justify-center text-white shadow-lg transition-transform group-hover:scale-110", getCategoryColorStyles(category.color).className)}
+            style={getCategoryColorStyles(category.color).style}
+          >
             <Layers className="h-6 w-6" />
           </div>
 
@@ -123,7 +140,10 @@ function SortableItem({
             )}
           </div>
 
-          <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className={cn(
+            "flex items-center gap-2 transition-opacity",
+            (isPopoverOpen || stagedColor !== category.color) ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+          )}>
             {confirmingDeleteId === category.id ? (
               <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-4 duration-300">
                 <Button 
@@ -143,15 +163,76 @@ function SortableItem({
                 </Button>
               </div>
             ) : (
-              <>
-                <div className="flex gap-1 mr-4">
-                  {COLORS.slice(0, 5).map(c => (
-                    <button 
-                      key={c.value}
-                      onClick={() => handleUpdate(category.id, { color: c.value })}
-                      className={cn("h-5 w-5 rounded-full transition-all hover:scale-125", c.value, category.color === c.value && "ring-2 ring-offset-2 ring-primary")}
-                    />
-                  ))}
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
+                    <PopoverTrigger
+                      className={cn(
+                        "h-10 w-10 rounded-xl cursor-pointer transition-all hover:scale-110 flex items-center justify-center border-none shadow-md ring-2 ring-white", 
+                        getCategoryColorStyles(stagedColor).className
+                      )}
+                      style={getCategoryColorStyles(stagedColor).style}
+                    >
+                      <Plus className="h-4 w-4 text-white opacity-0 hover:opacity-100 transition-opacity" />
+                    </PopoverTrigger>
+                    <PopoverContent className="w-64 p-4 rounded-3xl bg-white shadow-2xl border-none">
+                      <div className="space-y-4">
+                        <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Chọn màu sắc</Label>
+                        <div className="grid grid-cols-5 gap-2">
+                          {COLORS.map((c) => (
+                            <button
+                              key={c.value}
+                              onClick={() => {
+                                setStagedColor(c.hex)
+                              }}
+                              className={cn(
+                                "h-8 w-8 rounded-lg transition-all hover:scale-110 flex items-center justify-center border-none shadow-sm",
+                                c.value,
+                                stagedColor === c.hex || stagedColor === c.value ? "ring-2 ring-primary/20 scale-110" : "opacity-80"
+                              )}
+                            >
+                              {(stagedColor === c.hex || stagedColor === c.value) && <Check className="h-4 w-4 text-white" />}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="pt-2 border-t border-slate-50">
+                          <div className="flex items-center gap-3">
+                            <div className="h-8 w-8 rounded-lg overflow-hidden relative shadow-sm">
+                              <input 
+                                type="color"
+                                className="absolute inset-0 w-12 h-12 -translate-x-1 -translate-y-1 cursor-pointer"
+                                value={stagedColor.startsWith('#') ? stagedColor : '#3b82f6'}
+                                onChange={(e) => setStagedColor(e.target.value)}
+                              />
+                            </div>
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Màu tùy chỉnh</span>
+                          </div>
+                        </div>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+
+                  {stagedColor !== category.color && (
+                    <div className="flex gap-1 animate-in slide-in-from-right-2 duration-300">
+                      <Button 
+                        size="icon" 
+                        onClick={() => handleUpdate(category.id, { color: stagedColor })}
+                        className="h-8 w-8 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white shadow-md shadow-emerald-100"
+                        title="Xác nhận đổi màu"
+                      >
+                        <Check className="h-4 w-4" />
+                      </Button>
+                      <Button 
+                        size="icon" 
+                        variant="ghost"
+                        onClick={() => setStagedColor(category.color)}
+                        className="h-8 w-8 rounded-lg text-slate-300 hover:text-rose-500 hover:bg-rose-50"
+                        title="Hủy"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
 
                 <Button 
@@ -162,7 +243,7 @@ function SortableItem({
                 >
                   <Trash2 className="h-5 w-5" />
                 </Button>
-              </>
+              </div>
             )}
           </div>
         </CardContent>
@@ -353,20 +434,44 @@ export default function CategoryManagement() {
                 </div>
                 <div className="space-y-3">
                   <Label className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">Màu sắc</Label>
-                  <div className="flex flex-wrap gap-2.5 pt-1">
-                    {COLORS.map((c) => (
-                      <button
-                        key={c.value}
-                        onClick={() => setNewColor(c.value)}
+                  <div className="flex flex-wrap items-center gap-3 pt-1">
+                    <div className="relative">
+                      <input 
+                        type="color"
+                        id="new-color-picker"
+                        className="sr-only"
+                        value={newColor.startsWith('#') ? newColor : '#3b82f6'}
+                        onChange={(e) => setNewColor(e.target.value)}
+                      />
+                      <label 
+                        htmlFor="new-color-picker"
                         className={cn(
-                          "h-10 w-10 rounded-xl transition-all hover:scale-110 active:scale-95 flex items-center justify-center",
-                          c.value,
-                          newColor === c.value ? "ring-4 ring-primary/20 scale-110 rotate-3 shadow-lg" : "opacity-80"
+                          "h-14 w-14 rounded-2xl cursor-pointer transition-all hover:scale-105 active:scale-95 flex items-center justify-center border-none shadow-lg ring-4 ring-white",
+                          getCategoryColorStyles(newColor).className
                         )}
+                        style={getCategoryColorStyles(newColor).style}
                       >
-                        {newColor === c.value && <Check className="h-5 w-5 text-white stroke-[3px]" />}
-                      </button>
-                    ))}
+                        <Plus className="h-6 w-6 text-white" />
+                      </label>
+                    </div>
+
+                    <div className="h-10 w-px bg-slate-100 mx-1" />
+
+                    <div className="flex flex-wrap gap-2">
+                      {COLORS.map((c) => (
+                        <button
+                          key={c.value}
+                          onClick={() => setNewColor(c.hex)}
+                          className={cn(
+                            "h-10 w-10 rounded-xl transition-all hover:scale-110 active:scale-95 flex items-center justify-center border-none shadow-sm",
+                            c.value,
+                            newColor === c.hex || newColor === c.value ? "ring-4 ring-primary/20 scale-110 rotate-3 shadow-lg" : "opacity-80"
+                          )}
+                        >
+                          {(newColor === c.hex || newColor === c.value) && <Check className="h-5 w-5 text-white stroke-[3px]" />}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>

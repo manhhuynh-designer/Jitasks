@@ -23,7 +23,7 @@ import { CalendarView } from '@/components/tasks/calendar-view'
 import { Calendar } from '@/components/ui/calendar'
 import { NewProjectDialog } from '@/components/projects/new-project-dialog'
 import { EditProjectDialog } from '@/components/projects/edit-project-dialog'
-import { cn } from '@/lib/utils'
+import { cn, getCategoryColorStyles } from '@/lib/utils'
 import { Project } from '@/hooks/use-projects'
 import { GlobalKPIBanner } from '@/components/dashboard/global-kpi-banner'
 import { SourcingPipelineBar } from '@/components/dashboard/sourcing-pipeline-bar'
@@ -469,18 +469,25 @@ export default function Dashboard() {
                         <div className="space-y-3">
                           <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1 ml-1">Trạng thái Project</Label>
                           <div className="flex flex-wrap gap-1.5">
-                            {PROJECT_STATUSES.map(status => {
-                              const isActive = statusFilter.length === 0 || statusFilter.includes(status.value)
+                            {(categories.length > 0 ? categories : PROJECT_STATUSES.map(s => ({ id: s.value, name: s.label, color: s.color.split(' ')[0] }))).map(cat => {
+                              const catName = 'name' in cat ? cat.name : (cat as any).label
+                              const catValue = 'name' in cat ? cat.name : (cat as any).value
+                              const isActive = statusFilter.length === 0 || statusFilter.includes(catValue)
+                              const colorStyles = getCategoryColorStyles(cat.color)
+                              
                               return (
                                 <button
-                                  key={status.value}
-                                  onClick={() => toggleStatus(status.value)}
+                                  key={catValue}
+                                  onClick={() => toggleStatus(catValue)}
                                   className={cn(
                                     "px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all border-transparent",
-                                    isActive ? `${status.color} shadow-sm scale-100` : "bg-slate-100 text-slate-400 opacity-50 scale-95 hover:opacity-80"
+                                    isActive 
+                                      ? cn("text-white shadow-sm scale-100", colorStyles.className || 'bg-slate-800') 
+                                      : "bg-slate-100 text-slate-400 opacity-50 scale-95 hover:opacity-80"
                                   )}
+                                  style={isActive ? colorStyles.style : {}}
                                 >
-                                  {status.label}
+                                  {catName}
                                 </button>
                               )
                             })}

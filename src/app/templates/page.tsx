@@ -8,7 +8,7 @@ import { Plus, Trash2, ClipboardCheck, AlertCircle, Pencil, GripVertical, Check,
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { cn } from '@/lib/utils'
+import { cn, getCategoryColorStyles } from '@/lib/utils'
 import { NewTemplateDialog } from '@/components/templates/new-template-dialog'
 import {
   DndContext,
@@ -348,9 +348,17 @@ export default function TemplatesPage() {
             {/* Stage Header */}
             <div className="flex items-center justify-between group/header">
               <div className="flex items-center gap-4">
-                <div className={cn("h-10 px-4 rounded-xl flex items-center justify-center text-white text-[10px] font-black uppercase tracking-widest shadow-lg", category.color)}>
-                  Giai đoạn: {category.name}
-                </div>
+                {(() => {
+                  const colorStyles = getCategoryColorStyles(category.color)
+                  return (
+                    <div 
+                      className={cn("h-10 px-4 rounded-xl flex items-center justify-center text-white text-[10px] font-black uppercase tracking-widest shadow-lg", colorStyles.className || 'bg-slate-800')}
+                      style={colorStyles.style}
+                    >
+                      Giai đoạn: {category.name}
+                    </div>
+                  )
+                })()}
                 <div className="h-[2px] w-20 bg-slate-100 rounded-full" />
               </div>
               <Button 

@@ -40,7 +40,7 @@ import {
 } from 'lucide-react'
 import { format, isPast, isToday, isBefore, addDays } from 'date-fns'
 import { vi } from 'date-fns/locale'
-import { cn } from '@/lib/utils'
+import { cn, getCategoryColorStyles } from '@/lib/utils'
 import { UpcomingTasksStrip } from '@/components/analytics/upcoming-tasks-strip'
 import { EditProjectDialog } from '@/components/projects/edit-project-dialog'
 import { NewTaskDialog } from '@/components/tasks/new-task-dialog'
@@ -732,23 +732,28 @@ export default function ProjectDetail() {
 
           <div className="w-full max-w-4xl">
             <div className="relative flex items-center w-full bg-white/40 backdrop-blur-xl rounded-t-2xl border-x border-t border-white/60 overflow-hidden shadow-2xl shadow-slate-200/30">
-              {categories.length > 0 ? categories.map((cat, index) => (
-                <button
-                  key={cat.id}
-                  onClick={() => handleStageChange(cat)}
-                  className={cn(
-                    "flex-1 py-4 text-[10px] font-black uppercase tracking-widest transition-all duration-300 relative group border-none outline-none rounded-none",
-                    activeCategoryId === cat.id 
-                      ? cn("text-white z-10", cat.color || 'bg-slate-800') 
-                      : "text-slate-500 hover:text-slate-800 hover:bg-white/40 font-bold"
-                  )}
-                >
-                  <span className="relative z-10">{index + 1}. {cat.name}</span>
-                  {activeCategoryId === cat.id && (
-                    <div className="absolute inset-0 bg-inherit animate-in fade-in zoom-in-95 duration-300" />
-                  )}
-                </button>
-              )) : (
+              {categories.length > 0 ? categories.map((cat, index) => {
+                const isSelected = activeCategoryId === cat.id
+                const colorStyles = getCategoryColorStyles(cat.color)
+                return (
+                  <button
+                    key={cat.id}
+                    onClick={() => handleStageChange(cat)}
+                    className={cn(
+                      "flex-1 py-4 text-[10px] font-black uppercase tracking-widest transition-all duration-300 relative group border-none outline-none rounded-none",
+                      isSelected 
+                        ? cn("text-white z-10", colorStyles.className || 'bg-slate-800') 
+                        : "text-slate-500 hover:text-slate-800 hover:bg-white/40 font-bold"
+                    )}
+                    style={isSelected ? colorStyles.style : {}}
+                  >
+                    <span className="relative z-10">{index + 1}. {cat.name}</span>
+                    {isSelected && (
+                      <div className="absolute inset-0 bg-inherit animate-in fade-in zoom-in-95 duration-300" />
+                    )}
+                  </button>
+                )
+              }) : (
                 <p className="px-4 py-4 text-[10px] text-slate-400 font-bold uppercase tracking-widest italic animate-pulse w-full text-center">
                   ⚠️ Cần chạy SQL (setup_dynamic_categories) để hiển thị Giai đoạn
                 </p>

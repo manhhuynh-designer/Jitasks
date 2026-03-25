@@ -8,6 +8,7 @@ import { format, isPast, isToday } from 'date-fns'
 import { cn } from '@/lib/utils'
 import { getDeadlineLevel, DEADLINE_LEVELS } from '@/constants/ui-tokens'
 import { useDroppable } from '@dnd-kit/core'
+import { getPriorityInfo } from '@/lib/priority-utils'
 import { 
   SortableContext, 
   verticalListSortingStrategy,
@@ -66,11 +67,7 @@ const STATUS_STYLES: Record<string, { bg: string, hover: string, text: string, d
   },
 }
 
-const PRIORITY_COLORS: Record<string, string> = {
-  low: 'text-slate-400',
-  medium: 'text-amber-500',
-  high: 'text-rose-500',
-}
+// Priority styling is now handled via getPriorityInfo(task.priority).text
 
 function DraggableTaskItem({ task, onTaskClick }: { task: Task, onTaskClick?: (id: string) => void }) {
   const {
@@ -95,7 +92,7 @@ function DraggableTaskItem({ task, onTaskClick }: { task: Task, onTaskClick?: (i
 
   const taskDeadline = task.deadline ? new Date(task.deadline) : null
   const statusStyle = STATUS_STYLES[task.status] || STATUS_STYLES.todo
-  const priorityColor = PRIORITY_COLORS[task.priority] || PRIORITY_COLORS.low
+  const priorityInfo = getPriorityInfo(task.priority)
 
   return (
     <div 
@@ -119,7 +116,7 @@ function DraggableTaskItem({ task, onTaskClick }: { task: Task, onTaskClick?: (i
         <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-primary transition-colors pr-1">
           <GripVertical className="h-3 w-3" />
         </div>
-        <Flag className={cn("h-3 w-3 shrink-0 fill-current", priorityColor)} />
+        <Flag className={cn("h-3 w-3 shrink-0 fill-current", priorityInfo.text, priorityInfo.animate)} />
         <span className={cn("text-[11px] font-bold truncate transition-colors", statusStyle.text)}>
           {task.name}
         </span>

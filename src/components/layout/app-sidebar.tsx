@@ -29,7 +29,7 @@ import {
 } from '@/components/ui/sidebar'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
-import { cn } from '@/lib/utils'
+import { cn, getCategoryColorStyles } from '@/lib/utils'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { NewSupplierDialog } from '@/components/suppliers/new-supplier-dialog'
@@ -185,7 +185,10 @@ export function AppSidebar() {
                             render={<Link href={subItem.url} />}
                             className="rounded-lg text-xs hover:text-primary transition-colors flex items-center gap-2 group/subitem"
                           >
-                            <div className={cn("w-1.5 h-1.5 rounded-full transition-all group-hover/subitem:scale-125", subItem.color)} />
+                            <div 
+                              className={cn("w-1.5 h-1.5 rounded-full transition-all group-hover/subitem:scale-125", getCategoryColorStyles(subItem.color).className)} 
+                              style={getCategoryColorStyles(subItem.color).style}
+                            />
                             {subItem.title}
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>

@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Check, Building2, Pencil, Text, Copy } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn, getCategoryColorStyles } from '@/lib/utils'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -264,22 +264,26 @@ export function EditProjectDialog({
             <div className="space-y-3">
               <Label className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">Trạng thái</Label>
               <div className="grid grid-cols-2 gap-2">
-                {categories.map((opt, idx) => (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    onClick={() => setStatus(opt.name as any)}
-                    className={cn(
-                      "flex items-center justify-between px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border-2",
-                      status === opt.name 
-                        ? "bg-primary/20 border-primary text-primary shadow-sm" 
-                        : "bg-white/90 border-transparent text-slate-400 hover:bg-white/100"
-                    )}
-                  >
-                    {idx + 1}. {opt.name}
-                    {status === opt.name && <Check className="h-3 w-3 shadow-lg"></Check>}
-                  </button>
-                ))}
+                {categories.map((opt, idx) => {
+                  const isActive = status === opt.name
+                  const colorStyles = getCategoryColorStyles((opt as any).color)
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setStatus(opt.name as any)}
+                      className={cn(
+                        "flex items-center justify-between px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border-2",
+                        isActive 
+                          ? cn("text-white shadow-xl border-none", colorStyles.className || 'bg-slate-800') 
+                          : "bg-white/90 border-transparent text-slate-400 hover:bg-white/100"
+                      )}
+                      style={isActive ? colorStyles.style : {}}
+                    >
+                      {idx + 1}. {opt.name}
+                      {isActive && <Check className="h-3 w-3 shadow-lg"></Check>}
+                    </button>
+                )})}
               </div>
             </div>
           </form>

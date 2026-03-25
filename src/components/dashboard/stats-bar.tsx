@@ -10,7 +10,7 @@ import {
   Check
 } from 'lucide-react'
 import { isPast, isToday, isThisWeek, format } from 'date-fns'
-import { cn } from '@/lib/utils'
+import { cn, getCategoryColorStyles } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
 import {
   Dialog,
@@ -213,12 +213,17 @@ export function StatsBar({ projects, tasks, selectionTasks, onTaskClick, classNa
                     <div className="flex items-center gap-3 shrink-0">
                       {isItemProject ? (
                         <div className="flex flex-col items-end gap-1">
-                          <span className={cn(
-                            "px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-tighter",
-                            item.status === 'Active' ? "bg-emerald-100 text-emerald-600" : "bg-blue-100 text-blue-600"
-                          )}>
-                            {item.status}
-                          </span>
+                          {(() => {
+                            const colorStyles = getCategoryColorStyles(item.color)
+                            return (
+                              <span 
+                                className={cn("px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-tighter text-white", colorStyles.className || 'bg-slate-400')}
+                                style={colorStyles.style}
+                              >
+                                {item.status}
+                              </span>
+                            )
+                          })()}
                         </div>
                       ) : (
                         <div className="flex flex-col items-end gap-1">

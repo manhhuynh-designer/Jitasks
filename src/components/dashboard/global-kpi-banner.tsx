@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { isPast, isToday, format } from 'date-fns'
 import { Card, CardContent } from '@/components/ui/card'
 import { FolderOpen, Search, AlertTriangle, Zap, Check, ChevronRight } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn, getCategoryColorStyles } from '@/lib/utils'
 import { CARD_GLASS, LABEL_XS } from '@/constants/ui-tokens'
 import { Project } from '@/hooks/use-projects'
 import { Task } from '@/hooks/use-tasks'
@@ -177,12 +177,17 @@ export function GlobalKPIBanner({ projects, tasks, className, variant = 'default
                     <div className="flex items-center gap-3 shrink-0">
                       {isItemProject ? (
                         <div className="flex flex-col items-end gap-1">
-                          <span className={cn(
-                            "px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-tighter",
-                            item.status === 'Active' ? "bg-emerald-100 text-emerald-600" : "bg-blue-100 text-blue-600"
-                          )}>
-                            {item.status}
-                          </span>
+                          {(() => {
+                            const colorStyles = getCategoryColorStyles(item.color)
+                            return (
+                              <span 
+                                className={cn("px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-tighter text-white", colorStyles.className || 'bg-slate-400')}
+                                style={colorStyles.style}
+                              >
+                                {item.status}
+                              </span>
+                            )
+                          })()}
                         </div>
                       ) : (
                         <div className="flex flex-col items-end gap-1">

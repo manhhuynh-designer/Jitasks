@@ -118,22 +118,37 @@ export function NewTemplateDialog({
             project_status: projectStatus as any,
             default_priority: priority as any,
             category_id: categories.find(c => c.name === projectStatus)?.id || defaultCategoryId,
-            task_group_id: taskGroupId
+            task_group_id: taskGroupId,
+            updated_at: new Date().toISOString()
           })
           .eq('id', template.id)
 
         if (updateError) throw updateError
         if (onTemplateUpdated) onTemplateUpdated()
       } else {
+        const targetCategoryId = categories.find(c => c.name === projectStatus)?.id || defaultCategoryId
+        
+        // Find max order_index for this group + category
+        const { data: maxRes } = await supabase
+          .from('task_templates')
+          .select('order_index')
+          .eq('category_id', targetCategoryId)
+          .eq('task_group_id', taskGroupId)
+          .order('order_index', { ascending: false })
+          .limit(1)
+        
+        const nextOrder = (maxRes && maxRes.length > 0 ? (maxRes[0].order_index ?? -1) : -1) + 1
+
         const { error: insertError } = await supabase
           .from('task_templates')
           .insert({ 
             task_name: taskName, 
             project_status: projectStatus as any,
             default_priority: priority as any,
-            category_id: categories.find(c => c.name === projectStatus)?.id || defaultCategoryId,
+            category_id: targetCategoryId,
             task_group_id: taskGroupId,
-            created_by: user.id
+            created_by: user.id,
+            order_index: nextOrder
           })
 
         if (insertError) throw insertError
@@ -190,22 +205,27 @@ export function NewTemplateDialog({
           <div className="space-y-3">
             <Label className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">Kích hoạt tại Giai đoạn</Label>
             <div className="flex flex-wrap gap-2">
-              {categories.map((cat) => (
-                <button
-                  key={cat.id}
-                  type="button"
-                  onClick={() => setProjectStatus(cat.name)}
-                  className={cn(
-                    "flex items-center gap-1.5 px-4 py-2 rounded-xl text-[10px] font-black tracking-widest uppercase transition-all border outline-none",
-                    projectStatus === cat.name 
-                      ? cn("text-white border-transparent shadow-lg", cat.color)
-                      : "bg-white/60 text-slate-400 border-white hover:bg-white"
-                  )}
-                >
-                  {projectStatus === cat.name && <Check className="h-3 w-3 text-white stroke-[4px]" />}
-                  {cat.name}
-                </button>
-              ))}
+              {categories.map((cat) => {
+                const isHex = cat.color?.startsWith('#')
+                const isActive = projectStatus === cat.name
+                return (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => setProjectStatus(cat.name)}
+                    className={cn(
+                      "flex items-center gap-1.5 px-4 py-2 rounded-xl text-[10px] font-black tracking-widest uppercase transition-all border outline-none",
+                      isActive 
+                        ? cn("text-white border-transparent shadow-lg", !isHex && (cat.color || 'bg-slate-800'))
+                        : "bg-white/60 text-slate-400 border-white hover:bg-white"
+                    )}
+                    style={isActive && isHex ? { backgroundColor: cat.color } : {}}
+                  >
+                    {isActive && <Check className="h-3 w-3 text-white stroke-[4px]" />}
+                    {cat.name}
+                  </button>
+                )
+              })}
             </div>
           </div>
 

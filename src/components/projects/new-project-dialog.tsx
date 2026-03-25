@@ -16,7 +16,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Plus, Check, Building2, Briefcase } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { cn } from '@/lib/utils'
+import { cn, getCategoryColorStyles } from '@/lib/utils'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -296,25 +296,30 @@ export function NewProjectDialog({ onProjectCreated }: { onProjectCreated?: () =
             <div className="space-y-3">
               <Label className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">Starting Status</Label>
               <div className="grid grid-cols-2 gap-2">
-                {categories.length > 0 ? categories.map((cat, idx) => (
-                  <button
-                    key={cat.id}
-                    type="button"
-                    onClick={() => setStatus(cat.name)}
-                    className={cn(
-                      "flex items-center justify-between px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border-2",
-                      status === cat.name 
-                        ? cn("text-white shadow-xl border-none", cat.color) 
-                        : "bg-white/90 border-transparent text-slate-500 hover:bg-white/100"
-                    )}
-                  >
-                    <span className="flex items-center gap-2">
-                      <span className="opacity-50">{idx + 1}.</span>
-                      {cat.name}
-                    </span>
-                    {status === cat.name && <Check className="h-3 w-3"></Check>}
-                  </button>
-                )) : (
+                {categories.length > 0 ? categories.map((cat, idx) => {
+                  const isActive = status === cat.name
+                  const colorStyles = getCategoryColorStyles(cat.color)
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => setStatus(cat.name)}
+                      className={cn(
+                        "flex items-center justify-between px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border-2",
+                        isActive 
+                          ? cn("text-white shadow-xl border-none", colorStyles.className || 'bg-slate-800') 
+                          : "bg-white/90 border-transparent text-slate-500 hover:bg-white/100"
+                      )}
+                      style={isActive ? colorStyles.style : {}}
+                    >
+                      <span className="flex items-center gap-2">
+                        <span className="opacity-50">{idx + 1}.</span>
+                        {cat.name}
+                      </span>
+                      {isActive && <Check className="h-3 w-3"></Check>}
+                    </button>
+                  )
+                }) : (
                   <div className="col-span-2 p-4 text-center glass-premium border-dashed border-2 border-white/50 rounded-2xl">
                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest italic">
                        ⚠️ Vui lòng chạy SQL setup_dynamic_categories

@@ -54,6 +54,7 @@ type TaskTemplate = {
   category_id: string
   task_group_id: string | null
   default_priority: string
+  order_index: number
 }
 
 type TaskGroup = {
@@ -350,7 +351,7 @@ export default function TemplatesOverhaul() {
       const [catRes, groupRes, templateRes] = await Promise.all([
         supabase.from('project_categories').select('*').order('order_index'),
         supabase.from('task_groups').select('*').is('project_id', null).order('order_index'),
-        supabase.from('task_templates').select('*')
+        supabase.from('task_templates').select('*').order('order_index', { ascending: true })
       ])
 
       if (catRes.data) {
@@ -400,28 +401,36 @@ export default function TemplatesOverhaul() {
     const activeId = active.id as string
     const overId = over.id as string
 
-    // Container of the active item
-    const activeContainer = active.data.current?.sortable?.containerId || active.data.current?.containerId || 'ungrouped'
+    // Find containers
+    const activeData = active.data.current
+    const activeContainer = activeData?.sortable?.containerId || activeData?.containerId || 'ungrouped'
     
-    // Container of the over target
-    // If over an item, it's sortable.containerId. If over a group card, it's overId.
-    const overContainer = over.data.current?.sortable?.containerId || overId
+    const overData = over.data.current
+    const overContainer = overData?.sortable?.containerId || overId
 
     // Validate overContainer
     const isValidContainer = overContainer === 'ungrouped' || groups.some(g => g.id === overContainer)
     if (!isValidContainer) return
 
     if (activeContainer !== overContainer) {
-        setTemplates((prev) => {
-            const activeIndex = prev.findIndex((t) => t.id === activeId)
-            if (activeIndex === -1) return prev
-            
-            const newGroupId = overContainer === 'ungrouped' ? null : overContainer
-            
-            const updated = [...prev]
-            updated[activeIndex] = { ...updated[activeIndex], task_group_id: newGroupId }
-            return updated
-        })
+      setTemplates((prev) => {
+        const activeIndex = prev.findIndex((t) => t.id === activeId)
+        const overIndex = prev.findIndex((t) => t.id === overId)
+        
+        const newGroupId = overContainer === 'ungrouped' ? null : overContainer
+        
+        let newIndex
+        if (overIndex >= 0) {
+          newIndex = overIndex
+        } else {
+          newIndex = prev.length // simplistic, will be refined in filter
+        }
+
+        const updated = [...prev]
+        updated[activeIndex] = { ...updated[activeIndex], task_group_id: newGroupId }
+        
+        return arrayMove(updated, activeIndex, newIndex)
+      })
     }
   }
 
@@ -431,40 +440,55 @@ export default function TemplatesOverhaul() {
 
     if (!over) return
 
-    // Only persist if it's a template being dragged
-    if (active.data.current?.type !== 'Template') return
-
     const activeId = active.id as string
+    const overId = over.id as string
 
-    // Final state sync with DB
-    const template = templates.find(t => t.id === activeId)
-    if (!template) return
-
-    // VALIDATE: task_group_id must be a UUID or null
-    const groupId = template.task_group_id
-    const isValidGroupId = groupId === null || groups.some(g => g.id === groupId)
-    
-    if (!isValidGroupId) {
-        console.warn('Prevented invalid UUID persistence:', groupId)
-        fetchData() // Rollback UI
-        return
+    // 1. Calculate new state synchronously
+    let nextTemplates = [...templates]
+    if (activeId !== overId) {
+      const oldIndex = nextTemplates.findIndex((t) => t.id === activeId)
+      const newIndex = nextTemplates.findIndex((t) => t.id === overId)
+      if (oldIndex !== -1 && newIndex !== -1) {
+        nextTemplates = arrayMove(nextTemplates, oldIndex, newIndex)
+        setTemplates(nextTemplates)
+      }
     }
+
+    // Determine target group
+    const overContainer = over.data.current?.sortable?.containerId || over.id
+    
+    // 2. Persist order for the affected group
+    const containerTemplates = nextTemplates
+      .filter(t => (t.task_group_id || 'ungrouped') === overContainer)
+    
+    // Only persist items with valid UUIDs 
+    const validTemplates = containerTemplates.filter(t => t.id.length === 36)
 
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
+    const upsertData = validTemplates.map((t, index) => ({
+      id: t.id,
+      task_name: t.task_name,
+      project_status: t.project_status,
+      category_id: t.category_id,
+      task_group_id: t.task_group_id,
+      default_priority: t.default_priority,
+      order_index: index,
+      created_by: user.id,
+      updated_at: new Date().toISOString()
+    }))
+
+    if (upsertData.length === 0) return
+
     const { error } = await supabase
-        .from('task_templates')
-        .update({ 
-            task_group_id: groupId,
-            category_id: activeStageId // Safety measure
-        })
-        .eq('id', active.id)
+      .from('task_templates')
+      .upsert(upsertData, { onConflict: 'id' })
 
     if (error) {
-        console.error('Error persisting DnD:', error.message, error.code, error.details)
-        alert('Lỗi khi kéo thả: ' + error.message)
-        fetchData() // Rollback
+      console.error('Error persisting reorder:', error)
+      alert('Lỗi khi lưu thứ tự: ' + error.message)
+      fetchData() // Rollback
     }
   }
 

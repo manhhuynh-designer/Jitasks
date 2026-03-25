@@ -33,7 +33,7 @@ export default function RootLayout({
 
   return (
     <html lang="vi" suppressHydrationWarning>
-      <body className={`${plusJakartaSans.variable} font-sans`}>
+      <body className={`${plusJakartaSans.variable} font-sans`} suppressHydrationWarning>
         {loading && !isLoginPage ? (
           <div className="flex h-screen items-center justify-center">
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
