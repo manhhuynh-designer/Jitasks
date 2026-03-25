@@ -36,7 +36,7 @@ Wrap the middle content in a scrollable container to prevent cropping:
 
 ### Form Elements
 - **Inputs/Selects**: `rounded-2xl h-12 bg-white/50 border-none focus-visible:ring-primary/20 font-medium`
-- **Primary Button**: `w-full rounded-2xl h-14 font-bold text-lg shadow-lg shadow-primary/20`
+- **Primary Button**: `w-full rounded-2xl h-14 font-bold text-lg shadow-primary/20`
 
 ### Icons
 - Use a `h-12 w-12 rounded-2xl` background with a colored icon for the header:

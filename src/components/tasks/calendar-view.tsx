@@ -15,7 +15,9 @@ import {
   User,
   Clock,
   PlayCircle,
-  CheckCircle2
+  CheckCircle2,
+  ListTodo,
+  X
 } from 'lucide-react'
 import { getPriorityInfo } from '@/lib/priority-utils'
 import {
@@ -26,6 +28,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import { EditTaskDialog } from '@/components/tasks/edit-task-dialog'
+import { NewTaskDialog } from '@/components/tasks/new-task-dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -45,7 +48,11 @@ import {
   endOfWeek,
   isSameMonth,
   isSameDay,
-  eachDayOfInterval
+  eachDayOfInterval,
+  addWeeks,
+  subWeeks,
+  isToday,
+  startOfDay,
 } from 'date-fns'
 import { vi } from 'date-fns/locale'
 import { cn } from '@/lib/utils'
@@ -167,10 +174,8 @@ const DayCell = ({
           </div>
         </ScrollArea>
 
-        {/* Gradient Scroll Indicator for Month View */}
-        {view === 'month' && dayTasks.length > 2 && (
-          <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-white/80 to-transparent pointer-events-none z-10" />
-        )}
+        {/* Gradient Scroll Indicator for Month View Removed */}
+
 
         {dayTasks.length === 0 && (
           <div className="h-20 flex flex-col items-center justify-center opacity-0">
@@ -184,11 +189,12 @@ const DayCell = ({
 
 interface CalendarViewProps {
   tasks: Task[]
+  projectId?: string
   className?: string
   onRefreshTasks: () => void
 }
 
-export function CalendarView({ tasks, className, onRefreshTasks }: CalendarViewProps) {
+export function CalendarView({ tasks, projectId, className, onRefreshTasks }: CalendarViewProps) {
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [view, setView] = useState<'month' | 'week'>('month')
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
@@ -415,25 +421,31 @@ export function CalendarView({ tasks, className, onRefreshTasks }: CalendarViewP
 
       {/* Day Details Modal */}
       <Dialog open={!!selectedDay} onOpenChange={(open) => !open && setSelectedDay(null)}>
-        <DialogContent className="sm:max-w-[480px] rounded-[3rem] border-none glass-premium p-0 overflow-hidden shadow-2xl">
-          <div className="p-10 pb-6 bg-gradient-to-br from-primary/5 via-transparent to-transparent">
+        <DialogContent className="sm:max-w-[480px] rounded-[2.5rem] border-none glass-premium p-0 overflow-hidden shadow-none">
+          <div className="p-8 pb-6 bg-white/50">
             <DialogHeader className="mb-0">
               <div className="flex items-center justify-between w-full mb-6">
-                <div className="h-16 w-16 rounded-[1.8rem] bg-white text-primary flex items-center justify-center shadow-2xl shadow-primary/10 ring-8 ring-primary/[0.03]">
+                <div className="h-16 w-16 rounded-[1.5rem] bg-white text-primary flex items-center justify-center ring-8 ring-primary/[0.03]">
                   <CalendarIcon className="h-8 w-8" />
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge variant="default" className="h-8 px-4 rounded-full bg-primary text-white font-black uppercase tracking-widest text-[10px]">
                     {selectedDay ? getTasksForDay(selectedDay).length : 0} Tasks
                   </Badge>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    onClick={() => {}} 
-                    className="h-8 px-3 rounded-full bg-slate-800 text-white text-[10px] font-black uppercase hover:bg-slate-700 flex items-center gap-1 border-none"
-                  >
-                    <Plus className="h-3 w-3" /> Add Task
-                  </Button>
+                  <NewTaskDialog 
+                    projectId={projectId}
+                    initialDeadline={selectedDay || undefined}
+                    onTaskCreated={onRefreshTasks}
+                    trigger={
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="h-8 px-3 rounded-full bg-slate-800 text-white text-[10px] font-black uppercase hover:bg-slate-700 flex items-center gap-1 border-none"
+                      >
+                        <Plus className="h-3 w-3" /> Add Task
+                      </Button>
+                    }
+                  />
                 </div>
               </div>
               <DialogTitle className="text-2xl font-black text-slate-800 tracking-tight">
@@ -445,7 +457,7 @@ export function CalendarView({ tasks, className, onRefreshTasks }: CalendarViewP
             </DialogHeader>
           </div>
 
-          <ScrollArea className="max-h-[60vh] px-10 pb-10">
+          <ScrollArea className="max-h-[60vh] px-8 pb-8">
             <div className="space-y-4">
               {selectedDay && getTasksForDay(selectedDay).length > 0 ? (
                 getTasksForDay(selectedDay).map((task: Task) => (
@@ -455,9 +467,9 @@ export function CalendarView({ tasks, className, onRefreshTasks }: CalendarViewP
                       setSelectedTask(task)
                       setSelectedDay(null)
                     }}
-                    className="p-5 rounded-[2rem] bg-white/60 hover:bg-white border border-white hover:border-primary/20 transition-all duration-300 cursor-pointer shadow-sm hover:shadow-xl hover:shadow-primary/5 group relative overflow-hidden"
+                    className="p-5 rounded-[2rem] bg-white/60 hover:bg-slate-50 border border-white hover:border-primary/20 transition-all duration-300 cursor-pointer group relative overflow-hidden"
                   >
-                    <div className="absolute top-0 right-0 h-16 w-16 bg-primary/5 rounded-bl-[3rem] translate-x-12 -translate-y-12 group-hover:translate-x-4 group-hover:-translate-y-4 transition-transform duration-500" />
+
 
                     <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 relative z-10 w-full">
                       <div className="flex flex-col pr-6 max-w-[70%]">
@@ -471,7 +483,7 @@ export function CalendarView({ tasks, className, onRefreshTasks }: CalendarViewP
                               return <Icon className="h-4 w-4 fill-current" />
                             })()}
                           </div>
-                          <h4 className={cn("font-black group-hover:text-primary transition-colors text-base leading-tight truncate",
+                          <h4 className={cn("font-bold group-hover:text-primary transition-colors text-base leading-tight truncate",
                             task.status === 'done' ? 'text-slate-400 line-through' : 'text-slate-800'
                           )}>
                             {task.name}
@@ -486,6 +498,12 @@ export function CalendarView({ tasks, className, onRefreshTasks }: CalendarViewP
                             <Circle className="h-2 w-2 text-primary fill-primary" />
                             <span className="truncate">{task.projects.name}</span>
                           </Link>
+                        )}
+                        {task.task_groups && (
+                          <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-6 mt-1.5">
+                            <ListTodo className="h-2.5 w-2.5 text-slate-400" />
+                            <span className="truncate">{task.task_groups.name}</span>
+                          </div>
                         )}
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
@@ -503,7 +521,7 @@ export function CalendarView({ tasks, className, onRefreshTasks }: CalendarViewP
                 ))
               ) : (
                 <div className="text-center py-20 bg-white/20 rounded-[2.5rem] border-2 border-dashed border-white/60 flex flex-col items-center justify-center space-y-4">
-                  <div className="h-20 w-20 rounded-full bg-white flex items-center justify-center shadow-lg">
+                  <div className="h-20 w-20 rounded-full bg-white flex items-center justify-center">
                     <span className="text-3xl">✨</span>
                   </div>
                   <div className="space-y-1">

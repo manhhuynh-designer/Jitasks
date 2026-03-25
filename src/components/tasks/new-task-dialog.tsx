@@ -47,13 +47,17 @@ export function NewTaskDialog({
   projectId, 
   initialCategoryId,
   initialTaskGroupId,
+  initialDeadline,
+  initialStartDate,
   onTaskCreated,
   onOpenChange,
   trigger
 }: { 
-  projectId: string, 
+  projectId?: string, 
   initialCategoryId?: string,
   initialTaskGroupId?: string | null,
+  initialDeadline?: Date,
+  initialStartDate?: Date,
   onTaskCreated: () => void,
   onOpenChange?: (open: boolean) => void,
   trigger?: React.ReactElement
@@ -67,12 +71,14 @@ export function NewTaskDialog({
   const [categories, setCategories] = useState<{id: string, name: string, color: string}[]>([])
   const [taskGroups, setTaskGroups] = useState<{id: string, name: string}[]>([])
   const [status, setStatus] = useState('todo')
-  const [startDate, setStartDate] = useState<Date>(new Date())
-  const [deadline, setDeadline] = useState<Date>(new Date(Date.now() + 86400000 * 3))
+  const [startDate, setStartDate] = useState<Date>(initialStartDate || new Date())
+  const [deadline, setDeadline] = useState<Date>(initialDeadline || new Date(Date.now() + 86400000 * 3))
   const [taskTime, setTaskTime] = useState('09:00')
   const [assigneeId, setAssigneeId] = useState<string | null>(null)
   const [profiles, setProfiles] = useState<{id: string, full_name: string}[]>([])
   const [projectName, setProjectName] = useState<string>('')
+  const [allProjects, setAllProjects] = useState<{id: string, name: string}[]>([])
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(projectId || null)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -87,8 +93,13 @@ export function NewTaskDialog({
           if (!categoryId && cats.length > 0) setCategoryId(cats[0].id)
         }
 
-        const { data: proj } = await supabase.from('projects').select('name').eq('id', projectId).single()
-        if (proj) setProjectName(proj.name)
+        if (projectId) {
+          const { data: proj } = await supabase.from('projects').select('name').eq('id', projectId).single()
+          if (proj) setProjectName(proj.name)
+        } else {
+          const { data: projs } = await supabase.from('projects').select('id, name').order('created_at', { ascending: false })
+          if (projs) setAllProjects(projs)
+        }
       }
       fetchData()
     }
@@ -115,6 +126,18 @@ export function NewTaskDialog({
   }, [initialCategoryId])
 
   useEffect(() => {
+    if (initialDeadline) setDeadline(initialDeadline)
+  }, [initialDeadline])
+
+  useEffect(() => {
+    if (initialStartDate) setStartDate(initialStartDate)
+  }, [initialStartDate])
+
+  useEffect(() => {
+    if (projectId) setSelectedProjectId(projectId)
+  }, [projectId])
+
+  useEffect(() => {
     if (initialTaskGroupId) setTaskGroupId(initialTaskGroupId)
   }, [initialTaskGroupId])
 
@@ -131,8 +154,15 @@ export function NewTaskDialog({
     }
     
     try {
+      const finalProjectId = projectId || selectedProjectId
+      if (!finalProjectId) {
+        alert("Vui lòng chọn project")
+        setLoading(false)
+        return
+      }
+
       const taskData = {
-        project_id: projectId,
+        project_id: finalProjectId,
         category_id: categoryId,
         task_group_id: taskGroupId,
         name,
@@ -217,6 +247,26 @@ export function NewTaskDialog({
 
         <div className="flex-1 overflow-y-auto px-8 py-6 custom-scrollbar">
           <form id="new-task-form" onSubmit={handleSubmit} className="space-y-6">
+            {!projectId && (
+              <div className="space-y-2">
+                <Label className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">Chọn Project</Label>
+                <Select value={selectedProjectId || ""} onValueChange={setSelectedProjectId}>
+                  <SelectTrigger className="h-11 rounded-xl bg-white/90 border-none hover:bg-white/100 px-4 text-xs font-medium">
+                    <SelectValue placeholder="Chọn project">
+                      {allProjects.find(p => p.id === selectedProjectId)?.name}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl border-none glass-premium shadow-2xl p-2">
+                    {allProjects.map(p => (
+                      <SelectItem key={p.id} value={p.id} className="rounded-lg px-4 py-2 cursor-pointer focus:bg-primary/10 focus:text-primary font-medium text-xs">
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label htmlFor="t-name" className="text-xs font-black uppercase tracking-widest text-slate-400 ml-1">Tên Task</Label>
               <Input 

@@ -7,7 +7,7 @@ The application uses a "Premium Glassmorphism" aesthetic characterized by high t
 - **Background**: `bg-[#F8FAFC]` (Slate 50) with subtle mesh gradients.
 - **Glass Panels**: 
     - Layer 1 (Main): `bg-white/40 backdrop-blur-md border border-white/60 shadow-sm`
-    - Layer 2 (Floating): `bg-white/60 backdrop-blur-xl border border-white/80 shadow-xl`
+    - Layer 2 (Floating): `bg-white/60 backdrop-blur-xl border border-white/80`
     - Premium Hover: `hover:bg-white hover:shadow-2xl hover:shadow-primary/5 transition-all duration-300`
 - **Primary Accent**: `bg-primary` (Blue/Indigo), `text-primary`.
 - **Status Colors**:
