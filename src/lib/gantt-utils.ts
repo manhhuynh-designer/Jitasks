@@ -50,3 +50,25 @@ export const calculateGanttPercentages = (
     width: Math.max(0, Math.min(100 - left, width)),
   }
 }
+
+/**
+ * Calculates the bounding dates (min start, max end) for a set of tasks.
+ */
+export const calculateDateRange = (tasks: any[]) => {
+  if (!tasks.length) return { start: null, end: null }
+  
+  let start: Date | null = null
+  let end: Date | null = null
+  
+  tasks.forEach(task => {
+    // Treat deadline as end date, and if no start date, use deadline as start date
+    // or estimate based on duration if available. Here we use deadline for both if start is missing.
+    const s = task.start_date ? new Date(task.start_date) : (task.deadline ? new Date(task.deadline) : null)
+    const e = task.deadline ? new Date(task.deadline) : (task.start_date ? new Date(task.start_date) : null)
+    
+    if (s && (!start || s < start)) start = s
+    if (e && (!end || e > end)) end = e
+  })
+  
+  return { start, end }
+}

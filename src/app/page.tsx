@@ -10,7 +10,7 @@ import { TaskHotlist } from '@/components/tasks/task-hotlist'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
-import { Plus, Search, Calendar as CalendarIcon, LayoutGrid, Filter, ChevronLeft, ChevronRight, ChevronDownIcon, X, Briefcase, Tag, Clock, Flag, ArrowDownUp, Command } from 'lucide-react'
+import { Plus, Search, Calendar as CalendarIcon, LayoutGrid, Filter, ChevronLeft, ChevronRight, ChevronDownIcon, X, Briefcase, Tag, Clock, Flag, ArrowDownUp, Command, BarChart2 } from 'lucide-react'
 import {
   Popover,
   PopoverContent,
@@ -30,6 +30,7 @@ import { SourcingPipelineBar } from '@/components/dashboard/sourcing-pipeline-ba
 import { GlobalSearch } from '@/components/dashboard/global-search'
 import { TaskCompletionHeatmap } from '@/components/dashboard/task-completion-heatmap'
 import { TaskStatusDonut } from '@/components/dashboard/task-status-donut'
+import { DashboardGantt } from '@/components/dashboard/dashboard-gantt'
 
 const PROJECT_STATUSES = [
   { value: 'Sourcing', label: 'Sourcing', color: 'bg-blue-500 text-white' },
@@ -49,7 +50,7 @@ export default function Dashboard() {
   const { projects, loading: projectsLoading, refresh: refreshProjects } = useProjects()
   const { tasks: allTasks, loading: tasksLoading, refresh: refreshTasks } = useTasks()
   const [searchQuery, setSearchQuery] = useState('')
-  const [view, setView] = useState<'grid' | 'calendar'>('grid')
+  const [view, setView] = useState<'grid' | 'calendar' | 'gantt'>('grid')
   const [categories, setCategories] = useState<{id: string, name: string, color: string}[]>([])
 
   useEffect(() => {
@@ -686,6 +687,18 @@ export default function Dashboard() {
                   <CalendarIcon className="h-4 w-4" />
                   <span className="text-[10px] uppercase tracking-widest">Lịch</span>
                 </Button>
+                <Button 
+                  onClick={() => setView('gantt')}
+                  className={cn(
+                    "rounded-xl h-9 px-4 transition-all flex items-center gap-2 font-black border-none",
+                    view === 'gantt' 
+                      ? "bg-primary text-white shadow-lg shadow-primary/20 scale-105" 
+                      : "bg-transparent text-slate-400 hover:text-slate-600"
+                  )}
+                >
+                  <BarChart2 className="h-4 w-4 rotate-90" />
+                  <span className="text-[10px] uppercase tracking-widest">Gantt</span>
+                </Button>
               </div>
             </div>
           </div>
@@ -762,11 +775,17 @@ export default function Dashboard() {
                 </div>
               )}
             </div>
-          ) : (
+          ) : view === 'calendar' ? (
             <div className="flex flex-col h-full snap-start scroll-mt-2">
               <div className="glass-premium rounded-3xl p-6 shadow-sm border border-white/20 h-[calc(100vh-80px)] flex flex-col overflow-hidden">
                  <CalendarView tasks={filteredTasks} onRefreshTasks={handleRefresh} className="flex-1 overflow-hidden" />
               </div>
+            </div>
+          ) : (
+            <div className="flex flex-col h-full snap-start scroll-mt-2">
+               <div className="h-[calc(100vh-120px)] flex flex-col overflow-hidden">
+                  <DashboardGantt tasks={filteredTasks} onRefreshTasks={handleRefresh} />
+               </div>
             </div>
           )}
         </div>
