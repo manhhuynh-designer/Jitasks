@@ -147,6 +147,11 @@ export default function Dashboard() {
       result = result.filter(t => priorityFilter.includes(t.priority))
     }
 
+    // Project status filter (Multi)
+    if (statusFilter.length > 0) {
+      result = result.filter(t => statusFilter.includes(t.projects?.status || 'Sourcing'))
+    }
+
     // Task status filter (Multi)
     if (taskStatusFilter.length > 0) {
       result = result.filter(t => taskStatusFilter.includes(t.status))
@@ -180,7 +185,7 @@ export default function Dashboard() {
     }
 
     return result
-  }, [allTasks, searchQuery, priorityFilter, supplierFilter, dateRange])
+  }, [allTasks, searchQuery, priorityFilter, taskStatusFilter, statusFilter, supplierFilter, dateRange])
 
   const activeContextTasks = useMemo(() => {
     const activeProjectIds = new Set(projects.filter(p => (p.status || '').toLowerCase() !== 'archive').map(p => p.id))

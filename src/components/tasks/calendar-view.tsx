@@ -226,9 +226,7 @@ export function CalendarView({ tasks, className, onRefreshTasks }: CalendarViewP
   const getTasksForDay = (day: Date) => {
     return tasks.filter(t => {
       const taskDate = new Date(t.deadline)
-      const isSameDate = isSameDay(taskDate, day)
-      const matchesStage = t.project_categories?.name === t.projects?.status
-      return isSameDate && matchesStage
+      return isSameDay(taskDate, day)
     }).sort((a: any, b: any) => {
       if ((a.order_index || 0) !== (b.order_index || 0)) return (a.order_index || 0) - (b.order_index || 0);
       return (a.task_time || 0) - (b.task_time || 0);
