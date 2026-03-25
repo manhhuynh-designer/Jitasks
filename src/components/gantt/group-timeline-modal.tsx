@@ -310,7 +310,7 @@ export function GroupTimelineModal({ group, tasks: initialTasks, open, onOpenCha
                 onTaskCreated={() => onTaskUpdated?.()}
                 onOpenChange={setIsAddingTask}
                 trigger={
-                  <button className="h-16 w-16 rounded-full bg-primary flex items-center justify-center text-white shadow-xl shadow-primary/30 hover:scale-105 active:scale-95 transition-all cursor-pointer group/addbtn relative overflow-hidden">
+                  <button className="h-16 w-16 rounded-full bg-primary flex items-center justify-center text-white hover:scale-105 active:scale-95 transition-all cursor-pointer group/addbtn relative overflow-hidden">
                     <Plus className="h-8 w-8 group-hover/addbtn:scale-110 transition-transform" />
                     <div className="absolute inset-0 bg-white/20 opacity-0 group-hover/addbtn:opacity-100 transition-opacity" />
                   </button>

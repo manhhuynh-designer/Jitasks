@@ -106,7 +106,7 @@ function DraggableTaskItem({ task, onTaskClick }: { task: Task, onTaskClick?: (i
         statusStyle.bg,
         !isDragging && statusStyle.hover,
         !isDragging && "hover:border-slate-200 hover:scale-[1.02]",
-        isDragging && "opacity-30 border-primary/20 bg-primary/5 active:scale-95"
+        isDragging && "opacity-0 pointer-events-none"
       )}
     >
       <div 

@@ -35,7 +35,8 @@ import {
   ArrowUpDown,
   Maximize2,
   Image as ImageIcon,
-  GripVertical
+  GripVertical,
+  Layers
 } from 'lucide-react'
 import { format, isPast, isToday, isBefore, addDays } from 'date-fns'
 import { vi } from 'date-fns/locale'
@@ -69,7 +70,7 @@ import {
 import { Label } from '@/components/ui/label'
 import {
   DndContext,
-  closestCorners,
+  pointerWithin,
   KeyboardSensor,
   PointerSensor,
   useSensor,
@@ -77,7 +78,9 @@ import {
   DragEndEvent,
   DragOverEvent,
   DragStartEvent,
+  DragMoveEvent,
   DragOverlay,
+  useDroppable,
   defaultDropAnimationSideEffects,
 } from '@dnd-kit/core'
 import {
@@ -90,6 +93,36 @@ import {
 import { EditTaskDialog } from '@/components/tasks/edit-task-dialog'
 import { AssigneeLoadPanel } from '@/components/analytics/assignee-load-panel'
 import { AllStagesGroupOverview } from '@/components/analytics/all-stages-group-overview'
+import { TaskDropOptionsDialog } from '@/components/tasks/task-drop-options-dialog'
+
+function DropZone({ id, label, icon, color }: { id: string, label: string, icon: React.ReactNode, color: string }) {
+  const { isOver, setNodeRef } = useDroppable({ id })
+  
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        "flex items-center gap-3 px-6 py-4 rounded-[2rem] transition-all duration-300 cursor-default",
+        isOver 
+          ? cn("bg-primary text-white scale-110 shadow-xl ring-2 ring-primary/10") 
+          : cn("text-slate-500", color)
+      )}
+    >
+      <div className={cn(
+        "h-10 w-10 rounded-2xl flex items-center justify-center transition-colors shadow-sm",
+        isOver ? "bg-white/10" : "bg-slate-50"
+      )}>
+        {icon}
+      </div>
+      <span className={cn(
+        "text-[12px] font-black uppercase tracking-widest leading-none",
+        isOver ? "opacity-100" : "opacity-60"
+      )}>
+        {label}
+      </span>
+    </div>
+  )
+}
 
 export default function ProjectDetail() {
   const { id } = useParams()
@@ -125,6 +158,10 @@ export default function ProjectDetail() {
   const [isPreviewLoading, setIsPreviewLoading] = useState(false)
   const [isImageValid, setIsImageValid] = useState(true)
   const [activeId, setActiveId] = useState<string | null>(null)
+  
+  const [taskToHandleDrop, setTaskToHandleDrop] = useState<Task | null>(null)
+  const [isDropOptionsOpen, setIsDropOptionsOpen] = useState(false)
+  const [dropPosition, setDropPosition] = useState<{ x: number, y: number } | null>(null)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -459,6 +496,9 @@ export default function ProjectDetail() {
 
     if (!activeContainer || !overContainer) return
 
+    // Bỏ qua logic thay đổi mảng nếu đang hover vào thanh Bottom Actions
+    if (['drop-delete', 'drop-ungrouped', 'drop-new-group'].includes(overContainer as string)) return
+
     if (activeContainer !== overContainer) {
       setTasks((prev) => {
         const activeIndex = prev.findIndex((t) => t.id === activeId)
@@ -477,7 +517,62 @@ export default function ProjectDetail() {
     const { active, over } = event
     setActiveId(null)
 
-    if (!over) return
+    if (!over) {
+      setDropPosition(null)
+      return
+    }
+
+    // Handle Drop UI Zones (Delete, Ungrouped, New Group)
+    if (over.id === 'drop-delete') {
+      const taskId = active.id as string
+      if (confirm('Bạn có chắc muốn xoá task này?')) {
+        const { error } = await supabase.from('tasks').delete().eq('id', taskId)
+        if (error) console.error("Error deleting task:", error)
+        fetchData(true)
+      }
+      return
+    }
+
+    if (over.id === 'drop-ungrouped') {
+      const taskId = active.id as string
+      const { error } = await supabase.from('tasks').update({ task_group_id: null }).eq('id', taskId)
+      if (error) console.error("Error moving to ungrouped:", error)
+      fetchData(true)
+      return
+    }
+
+    if (over.id === 'drop-new-group') {
+      const taskId = active.id as string
+      const task = tasks.find(t => t.id === taskId)
+      if (task) {
+        // Try to identify the category from the task container
+        const activeContainer = active.data.current?.sortable?.containerId || active.data.current?.containerId
+        
+        // Find corresponding category if the container is a group
+        if (activeContainer && activeContainer !== 'ungrouped') {
+          const group = taskGroups.find(g => g.id === activeContainer)
+          if (group) {
+            setActiveCategoryId(group.category_id)
+          } else {
+            // Container might already be a category ID in some views
+            setActiveCategoryId(activeContainer)
+          }
+        }
+        
+        setTaskToHandleDrop(task)
+        
+        // Lấy tọa độ thẻ lúc thả ra để hiển thị Dialog
+        if (active.rect.current.translated) {
+          setDropPosition({
+            x: active.rect.current.translated.left + (active.rect.current.translated.width / 2),
+            y: active.rect.current.translated.top
+          })
+        }
+        
+        setIsDropOptionsOpen(true)
+      }
+      return
+    }
 
     if (active.data.current?.type !== 'Task') return
 
@@ -540,7 +635,14 @@ export default function ProjectDetail() {
   const progress = tasks.length > 0 ? Math.round((completedTasks / tasks.length) * 100) : 0
 
   return (
-    <div className="space-y-10 max-w-[1600px] mx-auto pb-20">
+    <DndContext 
+      sensors={sensors}
+      collisionDetection={pointerWithin}
+      onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
+      onDragEnd={handleDragEnd}
+    >
+      <div className="space-y-10 max-w-[1600px] mx-auto pb-32">
       {/* HEADER & STAGE BAR AREA WITH COVER BACKGROUND */}
       <div className="relative isolate px-8 pt-4 pb-1 group/cover transition-all duration-700 min-h-[300px] flex flex-col justify-end">
         {/* REPOSITIONED CHANGE COVER BUTTON */}
@@ -740,15 +842,8 @@ export default function ProjectDetail() {
 
             return (
               <div key={activeCategoryId} className="space-y-12 animate-in fade-in slide-in-from-bottom-6 duration-700 ease-out">
-                {/* Grid of Mini Gantt Cards wrapped in DndContext */}
-                <DndContext 
-                  sensors={sensors}
-                  collisionDetection={closestCorners}
-                  onDragStart={handleDragStart}
-                  onDragOver={handleDragOver}
-                  onDragEnd={handleDragEnd}
-                >
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+                {/* Grid of Mini Gantt Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
                     {groups.map(group => (
                       <MiniGanttCard 
                         key={group.id}
@@ -762,27 +857,6 @@ export default function ProjectDetail() {
                       />
                     ))}
                   </div>
-
-                  <DragOverlay dropAnimation={{
-                    sideEffects: defaultDropAnimationSideEffects({
-                      styles: { active: { opacity: '0.5' } },
-                    }),
-                  }}>
-                    {activeId ? (
-                      <div className="bg-white border-2 border-primary/20 rounded-2xl p-4 shadow-2xl ring-4 ring-primary/5 cursor-grabbing scale-105 rotate-1 flex items-center gap-3">
-                        <GripVertical className="h-4 w-4 text-primary" />
-                        <div className="flex-1">
-                          <h5 className="text-[13px] font-bold text-slate-700 tracking-tight">
-                            {tasks.find(t => t.id === activeId)?.name}
-                          </h5>
-                          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
-                            {tasks.find(t => t.id === activeId)?.status}
-                          </p>
-                        </div>
-                      </div>
-                    ) : null}
-                  </DragOverlay>
-                </DndContext>
 
                 {expandedGroupId && activeGroup && (
                   <GroupTimelineModal 
@@ -894,11 +968,31 @@ export default function ProjectDetail() {
               }}
             />
 
-            {/* [4] Assignee Load Panel */}
-            <AssigneeLoadPanel tasks={tasks} />
-          </div>
+          {/* [4] Assignee Load Panel */}
+          <AssigneeLoadPanel tasks={tasks} />
         </div>
       </div>
+      </div>
+
+      <DragOverlay dropAnimation={{
+        sideEffects: defaultDropAnimationSideEffects({
+          styles: { active: { opacity: '0.5' } },
+        }),
+      }}>
+        {activeId ? (
+          <div className="bg-white border-2 border-primary/20 rounded-2xl p-4 shadow-2xl ring-4 ring-primary/5 cursor-grabbing scale-105 rotate-1 flex items-center gap-3">
+            <GripVertical className="h-4 w-4 text-primary" />
+            <div className="flex-1">
+              <h5 className="text-[13px] font-bold text-slate-700 tracking-tight">
+                {tasks.find(t => t.id === activeId)?.name}
+              </h5>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
+                {tasks.find(t => t.id === activeId)?.status}
+              </p>
+            </div>
+          </div>
+        ) : null}
+      </DragOverlay>
 
       <EditProjectDialog 
         project={project} 
@@ -1017,6 +1111,42 @@ export default function ProjectDetail() {
         onOpenChange={(open) => !open && setEditingGroupId(null)}
         onGroupUpdated={() => fetchData(true)}
       />
-    </div>
+
+      {/* Bottom Drop Toolbar */}
+      <div 
+        className={cn(
+          "fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] transition-all duration-300 ease-out",
+          activeId ? "translate-y-0 scale-100 opacity-100" : "translate-y-4 scale-95 opacity-0 pointer-events-none"
+        )}
+      >
+        <div className="bg-white/90 backdrop-blur-3xl rounded-[2.5rem] border border-slate-200/60 p-2 shadow-[0_20px_50px_-20px_rgba(0,0,0,0.1)] flex items-center gap-2 overflow-hidden ring-1 ring-slate-900/5">
+          <DropZone id="drop-ungrouped" label="Chưa phân nhóm" icon={<Layers className="h-5 w-5" />} color="hover:text-blue-600 hover:bg-blue-50" />
+          <DropZone id="drop-new-group" label="Tạo nhóm mới" icon={<Plus className="h-5 w-5" />} color="hover:text-emerald-600 hover:bg-emerald-50" />
+          <div className="w-[1px] h-8 bg-slate-100 mx-1" />
+          <DropZone id="drop-delete" label="Xoá vĩnh viễn" icon={<Trash2 className="h-5 w-5" />} color="hover:text-rose-600 hover:bg-rose-50" />
+        </div>
+      </div>
+
+      <TaskDropOptionsDialog 
+        task={taskToHandleDrop}
+        projectId={project?.id as string}
+        categoryId={activeCategoryId || categories[0]?.id || ''}
+        open={isDropOptionsOpen}
+        initialStep="create_group"
+        onOpenChange={(open) => {
+          setIsDropOptionsOpen(open)
+          if (!open) {
+            setDropPosition(null)
+          }
+        }}
+        position={dropPosition || undefined}
+        onActionComplete={() => {
+          fetchData(true)
+          setIsDropOptionsOpen(false)
+          setDropPosition(null)
+        }}
+      />
+      </div>
+    </DndContext>
   )
 }
