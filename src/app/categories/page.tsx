@@ -14,7 +14,8 @@ import {
   MoreVertical,
   Settings2,
   Layers,
-  LayoutGrid
+  LayoutGrid,
+  Zap
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -60,6 +61,7 @@ type TaskGroup = {
   name: string
   category_id: string
   order_index: number
+  auto_create?: boolean
 }
 
 type Category = {
@@ -163,16 +165,18 @@ function GroupCard({
     onDeleteTemplate,
     onRefresh,
     activeStage,
-    isUngrouped = false
+    isUngrouped = false,
+    onToggleAutoCreate
 }: { 
-    group: TaskGroup | { id: string, name: string }, 
+    group: TaskGroup | { id: string, name: string, auto_create?: boolean }, 
     templates: TaskTemplate[], 
     onDeleteGroup?: (id: string) => void,
     onUpdateGroup?: (id: string, name: string) => void,
     onDeleteTemplate: (id: string) => void,
     onRefresh: () => void,
     activeStage: Category,
-    isUngrouped?: boolean
+    isUngrouped?: boolean,
+    onToggleAutoCreate?: (id: string, value: boolean) => void
 }) {
   const { setNodeRef, isOver } = useDroppable({ 
     id: group.id,
@@ -236,8 +240,23 @@ function GroupCard({
             )}
           </div>
 
-          {!isUngrouped && (
+          {!isUngrouped && (() => {
+            const isAutoCreate = (group as any).auto_create !== false
+            return (
             <div className="flex items-center gap-1">
+              {/* Auto-create toggle */}
+              <button
+                title={isAutoCreate ? 'Tự động tạo khi tạo Project' : 'Không tự tạo khi tạo Project'}
+                onClick={() => onToggleAutoCreate?.(group.id, !isAutoCreate)}
+                className={cn(
+                  "h-8 w-8 rounded-lg flex items-center justify-center transition-all",
+                  isAutoCreate
+                    ? "bg-amber-50 text-amber-500 hover:bg-amber-100"
+                    : "bg-slate-100 text-slate-300 hover:text-amber-500 hover:bg-amber-50"
+                )}
+              >
+                <Zap className="h-3.5 w-3.5" />
+              </button>
               <Button 
                 variant="ghost" 
                 size="icon" 
@@ -255,7 +274,8 @@ function GroupCard({
                 <Trash2 className="h-3.5 w-3.5" />
               </Button>
             </div>
-          )}
+            )
+          })()}
         </div>
 
         {/* Templates List */}
@@ -515,6 +535,19 @@ export default function TemplatesOverhaul() {
     }
   }
 
+  const handleToggleAutoCreate = async (id: string, newValue: boolean) => {
+    // Optimistic update
+    setGroups(prev => prev.map(g => g.id === id ? { ...g, auto_create: newValue } : g))
+    try {
+        const { error } = await supabase.from('task_groups').update({ auto_create: newValue }).eq('id', id)
+        if (error) throw error
+    } catch (err: any) {
+        // Rollback
+        setGroups(prev => prev.map(g => g.id === id ? { ...g, auto_create: !newValue } : g))
+        alert("Lỗi khi cập nhật auto-create: " + err.message)
+    }
+  }
+
   const deleteTemplate = async (id: string) => {
     try {
         if (!confirm('Xóa template này?')) return
@@ -591,6 +624,7 @@ export default function TemplatesOverhaul() {
                   onUpdateGroup={handleUpdateGroup}
                   onDeleteTemplate={deleteTemplate}
                   onRefresh={fetchData}
+                  onToggleAutoCreate={handleToggleAutoCreate}
                 />
               ))}
 

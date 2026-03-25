@@ -127,34 +127,39 @@ export function NewProjectDialog({ onProjectCreated }: { onProjectCreated?: () =
         .is('project_id', null)
 
       const groupMapping: Record<string, string> = {}
+      // Set of disabled global group IDs (auto_create = false)
+      const disabledGroupIds = new Set<string>()
       
       if (globalGroups && globalGroups.length > 0) {
-        // 2. Create project-specific groups
-        const groupsToCreate = globalGroups.map(g => ({
-          name: g.name,
-          category_id: g.category_id,
-          project_id: project.id,
-          order_index: g.order_index,
-          start_date: startDate.toISOString(),
-          deadline: new Date(startDate.getTime() + 86400000 * 7).toISOString(),
-          created_by: user.id
-        }))
-        
-        const { data: createdGroups, error: groupError } = await supabase
-          .from('task_groups')
-          .insert(groupsToCreate)
-          .select()
-        
-        if (groupError) {
-          console.error("Error creating project groups:", groupError)
-        } else if (createdGroups) {
-          // Map global group IDs to the new project-specific group IDs
-          // Since we inserted in order, we can map back if createdGroups is also sorted
-          // but safer to match by name and category_id
-          globalGroups.forEach(og => {
-            const ng = createdGroups.find(n => n.name === og.name && n.category_id === og.category_id)
-            if (ng) groupMapping[og.id] = ng.id
-          })
+        // Filter: only clone groups with auto_create enabled (default true)
+        const autoCreateGroups = globalGroups.filter(g => g.auto_create !== false)
+        globalGroups.filter(g => g.auto_create === false).forEach(g => disabledGroupIds.add(g.id))
+
+        if (autoCreateGroups.length > 0) {
+          // 2. Create project-specific groups
+          const groupsToCreate = autoCreateGroups.map(g => ({
+            name: g.name,
+            category_id: g.category_id,
+            project_id: project.id,
+            order_index: g.order_index,
+            start_date: startDate.toISOString(),
+            deadline: new Date(startDate.getTime() + 86400000 * 7).toISOString(),
+            created_by: user.id
+          }))
+          
+          const { data: createdGroups, error: groupError } = await supabase
+            .from('task_groups')
+            .insert(groupsToCreate)
+            .select()
+          
+          if (groupError) {
+            console.error("Error creating project groups:", groupError)
+          } else if (createdGroups) {
+            autoCreateGroups.forEach(og => {
+              const ng = createdGroups.find(n => n.name === og.name && n.category_id === og.category_id)
+              if (ng) groupMapping[og.id] = ng.id
+            })
+          }
         }
       }
 
@@ -163,7 +168,9 @@ export function NewProjectDialog({ onProjectCreated }: { onProjectCreated?: () =
         .select('*')
 
       if (templates && templates.length > 0) {
-        const tasksToCreate = templates.map(t => {
+        // Filter out templates belonging to disabled groups
+        const activeTemplates = templates.filter(t => !t.task_group_id || !disabledGroupIds.has(t.task_group_id))
+        const tasksToCreate = activeTemplates.map(t => {
           const cat = categories.find(c => c.name === t.project_status)
           return {
             project_id: project.id,

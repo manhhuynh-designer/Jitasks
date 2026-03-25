@@ -135,6 +135,7 @@ function DraggableTaskItem({ task, onTaskClick }: { task: Task, onTaskClick?: (i
 
 export function MiniGanttCard({ group, tasks, onExpand, onCardClick, onTaskClick, onEditGroup, onRefresh }: MiniGanttCardProps) {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const isUngrouped = group.id === 'ungrouped'
   const { setNodeRef, isOver } = useDroppable({
     id: group.id,
     data: {
@@ -234,16 +235,18 @@ export function MiniGanttCard({ group, tasks, onExpand, onCardClick, onTaskClick
               </Button>
             } />
             <DropdownMenuContent align="end" className="rounded-2xl border-none shadow-2xl glass-premium p-2 min-w-[160px]">
-              <DropdownMenuItem 
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onEditGroup?.(group.id)
-                }}
-                className="rounded-xl flex items-center gap-2 py-3 px-4 focus:bg-primary/5 focus:text-primary cursor-pointer font-bold text-xs uppercase tracking-widest text-slate-600"
-              >
-                <Settings className="h-4 w-4" />
-                Sửa thông tin
-              </DropdownMenuItem>
+              {!isUngrouped && (
+                <DropdownMenuItem 
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onEditGroup?.(group.id)
+                  }}
+                  className="rounded-xl flex items-center gap-2 py-3 px-4 focus:bg-primary/5 focus:text-primary cursor-pointer font-bold text-xs uppercase tracking-widest text-slate-600"
+                >
+                  <Settings className="h-4 w-4" />
+                  Sửa thông tin
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem 
                 onClick={(e) => {
                   e.stopPropagation()
@@ -252,7 +255,7 @@ export function MiniGanttCard({ group, tasks, onExpand, onCardClick, onTaskClick
                 className="rounded-xl flex items-center gap-2 py-3 px-4 focus:bg-rose-50 focus:text-rose-500 cursor-pointer font-bold text-xs uppercase tracking-widest text-slate-600"
               >
                 <Trash2 className="h-4 w-4" />
-                Xoá nhóm
+                {isUngrouped ? 'Xoá tất cả task' : 'Xoá nhóm'}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -276,6 +279,8 @@ export function MiniGanttCard({ group, tasks, onExpand, onCardClick, onTaskClick
                 open={isDeleteDialogOpen}
                 onOpenChange={setIsDeleteDialogOpen}
                 onRefresh={onRefresh || (() => {})}
+                isUngrouped={isUngrouped}
+                taskIds={isUngrouped ? tasks.map(t => t.id) : undefined}
               />
             </div>
           )}
