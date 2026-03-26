@@ -94,6 +94,7 @@ import { EditTaskDialog } from '@/components/tasks/edit-task-dialog'
 import { AssigneeLoadPanel } from '@/components/analytics/assignee-load-panel'
 import { AllStagesGroupOverview } from '@/components/analytics/all-stages-group-overview'
 import { TaskDropOptionsDialog } from '@/components/tasks/task-drop-options-dialog'
+import { ProjectDocuments } from '@/components/projects/project-documents'
 
 function DropZone({ id, label, icon, color }: { id: string, label: string, icon: React.ReactNode, color: string }) {
   const { isOver, setNodeRef } = useDroppable({ id })
@@ -947,7 +948,10 @@ export default function ProjectDetail() {
                       return (
                         <div key={cat.id} className="flex items-center justify-between text-xs font-bold">
                           <div className="flex items-center gap-2 text-slate-600">
-                            <div className={cn("h-2 w-2 rounded-full", cat.color)} />{cat.name}
+                            <div 
+                              className={cn("h-2 w-2 rounded-full", getCategoryColorStyles(cat.color).className)} 
+                              style={getCategoryColorStyles(cat.color).style}
+                            />{cat.name}
                           </div>
                           <span className="text-slate-400">{catDone} / {catTasks.length}</span>
                         </div>
@@ -957,6 +961,9 @@ export default function ProjectDetail() {
                 )}
               </CardContent>
             </Card>
+            
+            {/* [1.5] Project Documents Widget */}
+            <ProjectDocuments projectId={project.id} />
 
             {/* [2] Upcoming Tasks Strip */}
             <UpcomingTasksStrip tasks={tasks} onTaskClick={handleTaskClick} />

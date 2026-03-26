@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react'
 import { isPast, isToday } from 'date-fns'
-import { cn } from '@/lib/utils'
+import { cn, getCategoryColorStyles } from '@/lib/utils'
 import { Card, CardContent } from '@/components/ui/card'
 import { getDeadlineLevel, DEADLINE_LEVELS } from '@/constants/ui-tokens'
 
@@ -66,7 +66,10 @@ export function AllStagesGroupOverview({
         <div className="flex items-center justify-between px-6 pt-6 pb-3">
           <div className="flex items-center gap-2">
             {activeCategory?.color && (
-              <div className={cn("h-2 w-2 rounded-full", activeCategory.color)} />
+              <div 
+                className={cn("h-2 w-2 rounded-full", getCategoryColorStyles(activeCategory.color).className)} 
+                style={getCategoryColorStyles(activeCategory.color).style}
+              />
             )}
             <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
               Nhóm — {activeCategory?.name ?? 'Giai đoạn hiện tại'}
