@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { NewTaskDialog } from '@/components/tasks/new-task-dialog'
+import { TaskDateRangeDialog } from '@/components/tasks/task-date-range-dialog'
 import { Task } from '@/hooks/use-tasks'
 import {
   Dialog,
@@ -44,6 +45,7 @@ export function GroupTimelineModal({ group, tasks: initialTasks, open, onOpenCha
   const [dragType, setDragType] = useState<'move' | 'left' | 'right' | null>(null)
   const [isPendingSync, setIsPendingSync] = useState(false)
   const [isAddingTask, setIsAddingTask] = useState(false)
+  const [editingDateTask, setEditingDateTask] = useState<Task | null>(null)
   const [snapPreview, setSnapPreview] = useState<{ taskId: string, left: number, width: number } | null>(null)
   const dragStartPos = useRef<{ x: number, start_date: Date, deadline: Date } | null>(null)
   const activeDragRef = useRef<{ id: string, type: 'move' | 'left' | 'right', startX: number, start: Date, deadline: Date, initialWidth: number } | null>(null)
@@ -297,8 +299,9 @@ export function GroupTimelineModal({ group, tasks: initialTasks, open, onOpenCha
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className={cn(
-        "max-w-[95vw] w-[1300px] sm:max-w-[95vw] sm:w-[1300px] max-h-[90dvh] rounded-[2.5rem] border-none glass-premium p-0 overflow-hidden flex flex-col shadow-2xl animate-in zoom-in-95 duration-500",
-        isAddingTask && "opacity-0 scale-95 pointer-events-none translate-y-4"
+        "max-w-[95vw] w-[1300px] sm:max-w-[95vw] sm:w-[1300px] max-h-[90dvh] rounded-[2.5rem] border-none glass-premium p-0 overflow-hidden flex flex-col shadow-2xl animate-in zoom-in-95 duration-500 transition-all",
+        isAddingTask && "opacity-0 scale-95 pointer-events-none translate-y-4",
+        editingDateTask && "blur-xs  scale-[0.98]"
       )}>
         <DialogHeader className="p-10 pb-6 bg-white/80 border-b border-slate-100/50 backdrop-blur-xl shrink-0">
           <div className="flex items-center justify-between">
@@ -495,6 +498,10 @@ export function GroupTimelineModal({ group, tasks: initialTasks, open, onOpenCha
                                    task.status === 'done' && "opacity-60 grayscale-[0.3]"
                                  )}
                                  onPointerDown={(e) => handleDragStart(e, task, 'move')}
+                                 onDoubleClick={(e) => {
+                                     e.stopPropagation()
+                                     setEditingDateTask(task)
+                                 }}
                                  style={{ 
                                    left: `${leftPx}px`, 
                                    width: `${widthPx}px`,
@@ -556,6 +563,16 @@ export function GroupTimelineModal({ group, tasks: initialTasks, open, onOpenCha
           </div>
         </div>
       </DialogContent>
+
+      <TaskDateRangeDialog
+        task={editingDateTask}
+        open={!!editingDateTask}
+        onOpenChange={(v) => !v && setEditingDateTask(null)}
+        onTaskUpdated={() => {
+            setEditingDateTask(null)
+            onTaskUpdated?.()
+        }}
+      />
     </Dialog>
   )
 }
