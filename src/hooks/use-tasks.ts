@@ -17,7 +17,7 @@ export type Task = {
   task_group_id: string | null
   task_time: number | null
   updated_at: string
-  projects?: { name: string, status: string }
+  projects?: { name: string, status: string, color?: string }
   assignees?: { id: string, full_name: string }
   project_categories?: { name: string }
   task_groups?: { id: string, name: string, start_date?: string | null, deadline?: string | null } | null
@@ -46,7 +46,18 @@ export function useTasks(options: { projectId?: string, dueSoon?: boolean } = {}
     }
 
     const { data, error } = await query
-    if (!error && data) setTasks(data)
+    const { data: cData } = await supabase.from('project_categories').select('name, color')
+
+    if (!error && data) {
+      const tasksWithColor = data.map(t => ({
+        ...t,
+        projects: t.projects ? {
+          ...t.projects,
+          color: cData?.find(c => c.name === t.projects?.status)?.color || 'bg-slate-500'
+        } : undefined
+      }))
+      setTasks(tasksWithColor)
+    }
     setLoading(false)
   }
 

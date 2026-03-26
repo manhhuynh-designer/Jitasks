@@ -13,7 +13,9 @@ import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area'
 import { format, addDays, eachDayOfInterval, isSameDay, differenceInCalendarDays, differenceInDays, startOfDay } from 'date-fns'
 import { vi } from 'date-fns/locale'
 import { cn } from '@/lib/utils'
-import { LayoutGrid, Calendar as CalendarIcon, Clock, Flag, ChevronDown, Plus } from 'lucide-react'
+import { LayoutGrid, Calendar as CalendarIcon, Clock, Flag, ChevronDown, Plus, Edit2, Trash2 } from 'lucide-react'
+import { EditGroupDialog } from './edit-group-dialog'
+import { DeleteGroupDialog } from './delete-group-dialog'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -51,6 +53,8 @@ export function GroupTimelineModal({ group, tasks: initialTasks, open, onOpenCha
   const activeDragRef = useRef<{ id: string, type: 'move' | 'left' | 'right', startX: number, start: Date, deadline: Date, initialWidth: number } | null>(null)
   const lastSavedRef = useRef<{ id: string, start: string, end: string } | null>(null)
   const barRefs = useRef<Record<string, HTMLDivElement | null>>({})
+  const [isEditingGroup, setIsEditingGroup] = useState(false)
+  const [isDeletingGroup, setIsDeletingGroup] = useState(false)
   const timelineGridRef = useRef<HTMLDivElement>(null)
 
   // Only accept parent data if we are NOT dragging AND NOT waiting for an API response
@@ -301,7 +305,7 @@ export function GroupTimelineModal({ group, tasks: initialTasks, open, onOpenCha
       <DialogContent className={cn(
         "max-w-[95vw] w-[1300px] sm:max-w-[95vw] sm:w-[1300px] max-h-[90dvh] rounded-[2.5rem] border-none glass-premium p-0 overflow-hidden flex flex-col shadow-2xl animate-in zoom-in-95 duration-500 transition-all",
         isAddingTask && "opacity-0 scale-95 pointer-events-none translate-y-4",
-        editingDateTask && "blur-xs  scale-[0.98]"
+        (editingDateTask || isEditingGroup || isDeletingGroup) && "blur-xs scale-[0.98]"
       )}>
         <DialogHeader className="p-10 pb-6 bg-white/80 border-b border-slate-100/50 backdrop-blur-xl shrink-0">
           <div className="flex items-center justify-between">
@@ -320,7 +324,25 @@ export function GroupTimelineModal({ group, tasks: initialTasks, open, onOpenCha
                 }
               />
               <div>
-                <DialogTitle className="text-3xl font-black text-slate-900 tracking-tight leading-none mb-2">{group.name}</DialogTitle>
+                <div className="flex items-center gap-4 mb-2">
+                  <DialogTitle className="text-3xl font-black text-slate-900 tracking-tight leading-none">{group.name}</DialogTitle>
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={() => setIsEditingGroup(true)}
+                      className="h-8 w-8 rounded-lg bg-slate-50 flex items-center justify-center text-slate-400 hover:text-primary hover:bg-primary/10 transition-all active:scale-90"
+                      title="Sửa nhóm"
+                    >
+                      <Edit2 className="h-4 w-4" />
+                    </button>
+                    <button 
+                      onClick={() => setIsDeletingGroup(true)}
+                      className="h-8 w-8 rounded-lg bg-slate-50 flex items-center justify-center text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-all active:scale-90"
+                      title="Xoá nhóm"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-2 text-[10px] font-black uppercase text-slate-400">
                     <CalendarIcon className="h-3.5 w-3.5" />
@@ -571,6 +593,26 @@ export function GroupTimelineModal({ group, tasks: initialTasks, open, onOpenCha
         onTaskUpdated={() => {
             setEditingDateTask(null)
             onTaskUpdated?.()
+        }}
+      />
+
+      <EditGroupDialog 
+        groupId={group.id}
+        open={isEditingGroup}
+        onOpenChange={setIsEditingGroup}
+        onGroupUpdated={() => {
+          onTaskUpdated?.()
+          setIsEditingGroup(false)
+        }}
+      />
+
+      <DeleteGroupDialog 
+        group={group}
+        open={isDeletingGroup}
+        onOpenChange={setIsDeletingGroup}
+        onRefresh={() => {
+          onTaskUpdated?.()
+          onOpenChange(false)
         }}
       />
     </Dialog>

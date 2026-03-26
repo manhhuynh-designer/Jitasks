@@ -10,7 +10,7 @@ export const calculateGanttPercentages = (
   groupStart: Date | string | null,
   totalDays: number // Use the explicit number of day-columns for scale
 ) => {
-  if (!groupStart || !totalDays || !end) return { left: 0, width: 0 }
+  if (!groupStart || !totalDays || !start || !end) return { left: 0, width: 0 }
 
   const gStart = new Date(new Date(groupStart).setHours(0, 0, 0, 0))
   // Total milliseconds in the view
@@ -71,4 +71,36 @@ export const calculateDateRange = (tasks: any[]) => {
   })
   
   return { start, end }
+}
+
+/**
+ * Calculates segments for a group bar based on task statuses.
+ */
+export const calculateStatusSegments = (tasks: any[]) => {
+  if (!tasks.length) return []
+  
+  const total = tasks.length
+  const counts: Record<string, number> = {
+    todo: 0,
+    inprogress: 0,
+    pending: 0,
+    done: 0
+  }
+  
+  tasks.forEach(task => {
+    if (counts[task.status] !== undefined) {
+      counts[task.status]++
+    } else {
+      counts.todo++
+    }
+  })
+  
+  const segments = [
+    { status: 'todo', width: (counts.todo / total) * 100 },
+    { status: 'inprogress', width: (counts.inprogress / total) * 100 },
+    { status: 'pending', width: (counts.pending / total) * 100 },
+    { status: 'done', width: (counts.done / total) * 100 },
+  ].filter(s => s.width > 0)
+  
+  return segments
 }

@@ -16,7 +16,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '../ui/badge'
 import { Check, Calendar as CalendarIcon, ListTodo, Pencil, User, Trash2, Plus, Circle, PlayCircle, Clock, CheckCircle2, ExternalLink, MessageSquare, Link2, Download, Send, Edit2, ChevronLeft, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
-import { cn } from '@/lib/utils'
+import { cn, getCategoryColorStyles } from '@/lib/utils'
 import { format } from 'date-fns'
 import { Calendar } from '@/components/ui/calendar'
 import {
@@ -329,8 +329,9 @@ export function EditTaskDialog({
                   href={`/projects/${task.project_id}`}
                   className={cn(
                     "text-white border-transparent font-black px-3 py-1 rounded-lg text-[11px] uppercase cursor-pointer transition-colors inline-flex items-center shadow-sm",
-                    categories.find(c => c.id === (categoryId || task.category_id))?.color || "bg-primary"
+                    task.projects?.color ? getCategoryColorStyles(task.projects.color).className : (categories.find(c => c.id === (categoryId || task.category_id))?.color || "bg-primary")
                   )}
+                  style={task.projects?.color ? getCategoryColorStyles(task.projects.color).style : {}}
                 >
                   {task.projects.name}
                 </Link>
