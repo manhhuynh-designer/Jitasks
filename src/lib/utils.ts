@@ -5,7 +5,7 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function getCategoryColorStyles(color: string) {
+export function getCategoryColorStyles(color?: string) {
   const isHex = color?.startsWith('#')
   return {
     className: isHex ? "" : (color || 'bg-slate-500'),
