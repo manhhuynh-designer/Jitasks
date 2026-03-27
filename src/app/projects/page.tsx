@@ -12,7 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { Search, X, ArrowUpDown, ChevronLeft, ChevronRight, LayoutGrid, Info } from 'lucide-react'
+import { Search, X, ArrowUpDown, ChevronLeft, ChevronRight, LayoutGrid, Info, FileJson } from 'lucide-react'
+import { exportProjectsToJSON } from '@/lib/export-utils'
 import { cn } from '@/lib/utils'
 import { StatsBar } from '@/components/dashboard/stats-bar'
 import { EditTaskDialog } from '@/components/tasks/edit-task-dialog'
@@ -146,6 +147,16 @@ export default function ProjectsPage() {
           >
             <ArrowUpDown className="h-4 w-4" />
             {sortOrder === 'desc' ? 'Mới nhất' : 'Cũ nhất'}
+          </Button>
+
+          <Button
+            variant="outline"
+            onClick={() => exportProjectsToJSON(filteredProjects.map(p => p.id))}
+            disabled={filteredProjects.length === 0}
+            className="h-10 rounded-2xl bg-white/60 border-none hover:bg-emerald-50 hover:text-emerald-500 flex items-center gap-2 whitespace-nowrap px-4 font-bold text-slate-600 shadow-sm transition-all"
+          >
+            <FileJson className="h-4 w-4" />
+            Xuất JSON ({filteredProjects.length})
           </Button>
         </div>
       </div>

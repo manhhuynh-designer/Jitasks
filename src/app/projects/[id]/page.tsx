@@ -36,7 +36,8 @@ import {
   Maximize2,
   Image as ImageIcon,
   GripVertical,
-  Layers
+  Layers,
+  FileJson
 } from 'lucide-react'
 import { format, isPast, isToday, isBefore, addDays } from 'date-fns'
 import { vi } from 'date-fns/locale'
@@ -95,6 +96,7 @@ import { AssigneeLoadPanel } from '@/components/analytics/assignee-load-panel'
 import { AllStagesGroupOverview } from '@/components/analytics/all-stages-group-overview'
 import { TaskDropOptionsDialog } from '@/components/tasks/task-drop-options-dialog'
 import { ProjectDocuments } from '@/components/projects/project-documents'
+import { exportProjectsToJSON } from '@/lib/export-utils'
 
 function DropZone({ id, label, icon, color }: { id: string, label: string, icon: React.ReactNode, color: string }) {
   const { isOver, setNodeRef } = useDroppable({ id })
@@ -705,6 +707,15 @@ export default function ProjectDetail() {
                     className="h-10 w-10 rounded-xl bg-white/60 backdrop-blur-md border border-white/50 hover:bg-primary/10 hover:text-primary transition-all active:scale-90"
                   >
                     <Copy className="h-5 w-5" />
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="icon"
+                    onClick={() => project && exportProjectsToJSON([project.id])}
+                    className="h-10 w-10 rounded-xl bg-white/60 backdrop-blur-md border border-white/50 hover:bg-emerald-50 hover:text-emerald-500 transition-all active:scale-90"
+                    title="Xuất JSON cho AI phân tích"
+                  >
+                    <FileJson className="h-5 w-5" />
                   </Button>
                   <Button 
                     variant="ghost" 

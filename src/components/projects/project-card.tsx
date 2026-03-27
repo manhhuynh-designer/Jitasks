@@ -10,8 +10,9 @@ import { format } from 'date-fns'
 import { vi } from 'date-fns/locale'
 import { cn, getCategoryColorStyles } from '@/lib/utils'
 import Link from 'next/link'
-import { MoreHorizontal, Pencil, Copy, Trash2 } from 'lucide-react'
+import { MoreHorizontal, Pencil, Copy, Trash2, FileJson } from 'lucide-react'
 import { getPriorityInfo } from '@/lib/priority-utils'
+import { exportProjectsToJSON } from '@/lib/export-utils'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -198,6 +199,12 @@ export function ProjectCard({
               className="rounded-xl px-4 py-2 cursor-pointer focus:bg-primary/10 focus:text-primary font-bold text-xs gap-3"
             >
               <Pencil className="h-3.5 w-3.5" /> Sửa Project
+            </DropdownMenuItem>
+            <DropdownMenuItem 
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); exportProjectsToJSON([project.id]); }}
+              className="rounded-xl px-4 py-2 cursor-pointer focus:bg-emerald-50 focus:text-emerald-500 font-bold text-xs gap-3"
+            >
+              <FileJson className="h-3.5 w-3.5" /> Xuất JSON cho AI
             </DropdownMenuItem>
             <DropdownMenuItem 
               onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDuplicate?.(project); }}
