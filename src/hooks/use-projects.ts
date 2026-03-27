@@ -32,6 +32,7 @@ export function useProjects(statusFilter?: string) {
     let query = supabase
       .from('projects')
       .select('*, suppliers(id, name), tasks(id, status, priority, updated_at)')
+      .is('deleted_at', null)
       .order('created_at', { ascending: false })
 
     if (statusFilter) {
@@ -55,5 +56,22 @@ export function useProjects(statusFilter?: string) {
     fetchProjects()
   }, [statusFilter])
 
-  return { projects, loading, refresh: fetchProjects }
+  const deleteProject = async (projectId: string) => {
+    if (!confirm('Bạn có chắc chắn muốn xoá project này?')) return false
+    
+    const { error } = await supabase
+      .from('projects')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', projectId)
+
+    if (error) {
+      alert(`Lỗi khi xoá: ${error.message}`)
+      return false
+    }
+    
+    fetchProjects()
+    return true
+  }
+
+  return { projects, loading, refresh: fetchProjects, deleteProject }
 }

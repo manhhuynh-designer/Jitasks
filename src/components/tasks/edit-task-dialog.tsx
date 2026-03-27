@@ -128,7 +128,7 @@ export function EditTaskDialog({
       const { data: profs } = await supabase.from('assignees').select('id, full_name').order('full_name')
       if (profs) setProfiles(profs)
 
-      const { data: cats } = await supabase.from('project_categories').select('id, name, color').order('order_index', { ascending: true })
+      const { data: cats } = await supabase.from('project_categories').select('id, name, color').is('deleted_at', null).order('order_index', { ascending: true })
       if (cats) setCategories(cats)
 
       // Fetch total comments to find the last page (newest comments)
@@ -168,6 +168,7 @@ export function EditTaskDialog({
       let query = supabase
         .from('task_groups')
         .select('id, name, category_id')
+        .is('deleted_at', null)
       
       if (task.project_id) {
         query = query.eq('project_id', task.project_id)
@@ -301,6 +302,28 @@ export function EditTaskDialog({
       onOpenChange(false)
     } catch (err) {
       console.error("Unexpected error:", err)
+      setLoading(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!window.confirm("Bạn có chắc chắn muốn xoá task này không? Thao tác này không thể hoàn tác.")) return
+    
+    setLoading(true)
+    try {
+      const { error } = await supabase
+        .from('tasks')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', task.id)
+
+      if (error) throw error
+
+      setLoading(false)
+      onTaskUpdated()
+      onOpenChange(false)
+    } catch (err: any) {
+      console.error("Error deleting task:", err)
+      alert("Lỗi khi xoá task: " + err.message)
       setLoading(false)
     }
   }
@@ -844,6 +867,16 @@ export function EditTaskDialog({
           {isEditing ? (
             <DialogFooter>
               <div className="flex gap-2 w-full justify-end">
+                <Button 
+                  type="button" 
+                  variant="ghost" 
+                  onClick={handleDelete}
+                  disabled={loading}
+                  className="rounded-xl h-10 font-bold px-4 text-rose-500 hover:bg-rose-50 hover:text-rose-600 transition-all mr-auto"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Xoá Task
+                </Button>
                 <Button type="button" variant="outline" onClick={() => setIsEditing(false)} className="rounded-xl h-10 font-bold px-6 border-slate-200">
                   Hủy
                 </Button>
@@ -871,17 +904,27 @@ export function EditTaskDialog({
                   </Button>
                </div>
                
-               <div className="flex justify-between items-center px-1">
-                 <span className="text-[10px] text-slate-400 font-medium">Bình luận để chia sẻ ý tưởng hoặc tiến độ</span>
-                 <Button 
-                   type="button" 
-                   onClick={() => setIsEditing(true)} 
-                   variant="ghost"
-                   className="w-fit h-8 px-3 text-xs rounded-lg flex items-center gap-1.5 font-bold text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors"
-                 >
-                   <Pencil className="h-3 w-3" /> Chỉnh sửa Task
-                 </Button>
-               </div>
+                               <div className="flex justify-between items-center px-1">
+                  <span className="text-[10px] text-slate-400 font-medium">Bình luận để chia sẻ ý tưởng hoặc tiến độ</span>
+                  <div className="flex items-center gap-1">
+                    <button 
+                      type="button" 
+                      onClick={handleDelete}
+                      className="h-8 w-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-all active:scale-95 group/del"
+                      title="Xoá Task"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                    <Button 
+                      type="button" 
+                      onClick={() => setIsEditing(true)} 
+                      variant="ghost"
+                      className="w-fit h-8 px-3 text-xs rounded-lg flex items-center gap-1.5 font-bold text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors"
+                    >
+                      <Pencil className="h-3 w-3" /> Chỉnh sửa Task
+                    </Button>
+                  </div>
+                </div>
             </div>
           )}
         </div>

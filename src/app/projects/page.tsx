@@ -24,7 +24,7 @@ export default function ProjectsPage() {
   const supplierId = searchParams.get('supplier')
   const assigneeId = searchParams.get('assignee')
   
-  const { projects, loading, refresh } = useProjects()
+  const { projects, loading, refresh, deleteProject } = useProjects()
   const { tasks } = useTasks()
 
   const [searchQuery, setSearchQuery] = useState('')
@@ -166,6 +166,8 @@ export default function ProjectsPage() {
                   project={project} 
                   tasks={tasks}
                   categories={categories}
+                  onDelete={deleteProject}
+                  onTaskUpdate={refresh}
                 />
               ))}
             </div>

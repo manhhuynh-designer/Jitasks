@@ -12,7 +12,8 @@ import {
   Mail,
   ListTree,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  Trash2
 } from 'lucide-react'
 
 import {
@@ -124,6 +125,11 @@ export function AppSidebar() {
       title: 'Email Mẫu',
       url: '/email-templates',
       icon: Mail,
+    },
+    {
+      title: 'Thùng rác',
+      url: '/trash',
+      icon: Trash2,
     },
   ]
 

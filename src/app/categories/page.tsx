@@ -19,7 +19,7 @@ import {
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { cn } from '@/lib/utils'
+import { cn, getCategoryColorStyles } from '@/lib/utils'
 import { NewTemplateDialog } from '@/components/templates/new-template-dialog'
 import {
   DndContext,
@@ -349,9 +349,9 @@ export default function TemplatesOverhaul() {
     setLoading(true)
     try {
       const [catRes, groupRes, templateRes] = await Promise.all([
-        supabase.from('project_categories').select('*').order('order_index'),
-        supabase.from('task_groups').select('*').is('project_id', null).order('order_index'),
-        supabase.from('task_templates').select('*').order('order_index', { ascending: true })
+        supabase.from('project_categories').select('*').is('deleted_at', null).order('order_index'),
+        supabase.from('task_groups').select('*').is('project_id', null).is('deleted_at', null).order('order_index'),
+        supabase.from('task_templates').select('*').is('deleted_at', null).order('order_index', { ascending: true })
       ])
 
       if (catRes.data) {
@@ -520,28 +520,25 @@ export default function TemplatesOverhaul() {
 
   const handleDeleteGroup = async (id: string) => {
     try {
-        if (!confirm('Xóa nhóm này sẽ không xóa các template bên trong. Tiếp tục?')) return
+        if (!confirm('Xóa nhóm này sẽ đồng nghĩa với việc đưa toàn bộ các template bên trong vào thùng rác. Tiếp tục?')) return
 
-        // 1. Detach templates from this group first to avoid foreign key constraint errors
-        const { error: updateError } = await supabase
-            .from('task_templates')
-            .update({ task_group_id: null })
-            .eq('task_group_id', id)
-            
-        if (updateError) throw updateError
-
-        // 2. Detach actual tasks from this group to avoid foreign key constraints (legacy data fallback)
-        const { error: tasksUpdateError } = await supabase
-            .from('tasks')
-            .update({ task_group_id: null })
-            .eq('task_group_id', id)
-
-        if (tasksUpdateError) throw tasksUpdateError
-
-        // 3. Delete the group
-        const { error } = await supabase.from('task_groups').delete().eq('id', id)
+        const deleteTime = new Date().toISOString()
         
-        if (error) throw error
+        // 1. Soft delete the group
+        const { error: groupError } = await supabase
+            .from('task_groups')
+            .update({ deleted_at: deleteTime })
+            .eq('id', id)
+        
+        if (groupError) throw groupError
+
+        // 2. Cascaded soft delete templates in this group
+        const { error: templateError } = await supabase
+            .from('task_templates')
+            .update({ deleted_at: deleteTime })
+            .eq('task_group_id', id)
+        
+        if (templateError) console.error("Error soft deleting child templates:", templateError)
         
         fetchData()
     } catch (err: any) {
@@ -575,7 +572,10 @@ export default function TemplatesOverhaul() {
   const deleteTemplate = async (id: string) => {
     try {
         if (!confirm('Xóa template này?')) return
-        const { error } = await supabase.from('task_templates').delete().eq('id', id)
+        const { error } = await supabase
+            .from('task_templates')
+            .update({ deleted_at: new Date().toISOString() })
+            .eq('id', id)
         if (error) throw error
         setTemplates(prev => prev.filter(t => t.id !== id))
     } catch (err: any) {
@@ -595,21 +595,25 @@ export default function TemplatesOverhaul() {
       <div className="sticky top-0 z-20 -mx-8 px-8 py-5 bg-slate-50/90 backdrop-blur-xl border-b border-slate-200/60 shadow-sm">
         <div className="max-w-[1400px] mx-auto flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 overflow-x-auto no-scrollbar py-2 px-1 flex-1">
-            {categories.map((stage) => (
-              <button
-                key={stage.id}
-                onClick={() => setActiveStageId(stage.id)}
-                className={cn(
-                  "px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all duration-300 whitespace-nowrap text-white shadow-sm",
-                  stage.color,
-                  activeStageId === stage.id 
-                    ? "opacity-100 scale-105" 
-                    : "opacity-50 hover:opacity-70"
-                )}
-              >
-                {stage.name}
-              </button>
-            ))}
+            {categories.map((stage) => {
+              const colorStyles = getCategoryColorStyles(stage.color)
+              return (
+                <button
+                  key={stage.id}
+                  onClick={() => setActiveStageId(stage.id)}
+                  className={cn(
+                    "px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest transition-all duration-300 whitespace-nowrap text-white shadow-sm",
+                    colorStyles.className,
+                    activeStageId === stage.id 
+                      ? "opacity-100 scale-105" 
+                      : "opacity-50 hover:opacity-70"
+                  )}
+                  style={colorStyles.style}
+                >
+                  {stage.name}
+                </button>
+              )
+            })}
           </div>
 
           <NewTemplateDialog onTemplateCreated={fetchData} trigger={

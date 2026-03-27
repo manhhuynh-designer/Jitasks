@@ -32,7 +32,11 @@ export default function AssigneesPage() {
   const fetchAssignees = useCallback(async () => {
     setLoading(true)
     // Lấy thông tin nhân sự kèm theo các task để đếm số project
-    const { data } = await supabase.from('assignees').select('*, tasks(project_id)').order('full_name')
+    const { data } = await supabase
+      .from('assignees')
+      .select('*, tasks(project_id)')
+      .is('deleted_at', null)
+      .order('full_name')
     if (data) {
       const processed = data.map(a => {
         const projectIds = new Set((a.tasks || []).map((t: any) => t.project_id))
@@ -49,7 +53,11 @@ export default function AssigneesPage() {
 
   const deleteAssignee = async (id: string) => {
     if (!confirm('Xóa nhân sự này khỏi hệ thống?')) return
-    const { error } = await supabase.from('assignees').delete().eq('id', id)
+    const { error } = await supabase
+      .from('assignees')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', id)
+    
     if (!error) {
       setAssignees(assignees.filter(a => a.id !== id))
     }

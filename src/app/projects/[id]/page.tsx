@@ -261,6 +261,7 @@ export default function ProjectDetail() {
       const { data: catData } = await supabase
         .from('project_categories')
         .select('*')
+        .is('deleted_at', null)
         .order('order_index', { ascending: true })
 
       const { data: pData } = await supabase
@@ -273,12 +274,14 @@ export default function ProjectDetail() {
         .from('tasks')
         .select('*, assignees(id, full_name), task_groups(id, name)')
         .eq('project_id', id)
+        .is('deleted_at', null)
         .order('deadline', { ascending: true })
 
       const { data: groupData } = await supabase
         .from('task_groups')
         .select('*')
         .eq('project_id', id)
+        .is('deleted_at', null)
         .order('order_index', { ascending: true })
 
       if (catData) setCategories(catData)
@@ -419,9 +422,13 @@ export default function ProjectDetail() {
               setTasks(prev => [...prev, data as any])
             }
           } else if (payload.eventType === 'UPDATE') {
-            setTasks(prev => prev.map(t => 
-              t.id === payload.new.id ? { ...t, ...payload.new } : t
-            ))
+            if (payload.new.deleted_at) {
+              setTasks(prev => prev.filter(t => t.id !== payload.new.id))
+            } else {
+              setTasks(prev => prev.map(t => 
+                t.id === payload.new.id ? { ...t, ...payload.new } : t
+              ))
+            }
           } else if (payload.eventType === 'DELETE') {
             setTasks(prev => prev.filter(t => t.id === payload.old.id))
           }
@@ -467,7 +474,7 @@ export default function ProjectDetail() {
     
     const { error } = await supabase
       .from('tasks')
-      .delete()
+      .update({ deleted_at: new Date().toISOString() })
       .eq('id', taskId)
     
     if (error) {
@@ -527,7 +534,7 @@ export default function ProjectDetail() {
     if (over.id === 'drop-delete') {
       const taskId = active.id as string
       if (confirm('Bạn có chắc muốn xoá task này?')) {
-        const { error } = await supabase.from('tasks').delete().eq('id', taskId)
+        const { error } = await supabase.from('tasks').update({ deleted_at: new Date().toISOString() }).eq('id', taskId)
         if (error) console.error("Error deleting task:", error)
         fetchData(true)
       }
@@ -698,6 +705,21 @@ export default function ProjectDetail() {
                     className="h-10 w-10 rounded-xl bg-white/60 backdrop-blur-md border border-white/50 hover:bg-primary/10 hover:text-primary transition-all active:scale-90"
                   >
                     <Copy className="h-5 w-5" />
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="icon"
+                    onClick={() => {
+                      if (confirm('Bạn có chắc chắn muốn xoá project này?')) {
+                        supabase.from('projects').update({ deleted_at: new Date().toISOString() }).eq('id', id).then(({ error }) => {
+                          if (!error) router.push('/')
+                          else alert(`Lỗi: ${error.message}`)
+                        })
+                      }
+                    }}
+                    className="h-10 w-10 rounded-xl bg-white/60 backdrop-blur-md border border-white/50 hover:bg-red-50 hover:text-red-500 transition-all active:scale-90"
+                  >
+                    <Trash2 className="h-5 w-5" />
                   </Button>
                 </div>
               </div>

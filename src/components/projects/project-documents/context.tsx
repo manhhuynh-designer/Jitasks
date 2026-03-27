@@ -39,6 +39,7 @@ export function ProjectDocumentsProvider({
         .from('project_documents')
         .select('*')
         .eq('project_id', projectId)
+        .is('deleted_at', null)
         .order('created_at', { ascending: false })
 
       if (error) throw error
@@ -130,16 +131,16 @@ export function ProjectDocumentsProvider({
   }
 
   const deleteDocument = async (doc: ProjectDocument) => {
-    if ((doc.type === 'file' || doc.type === 'image') && doc.url) {
+    /* if ((doc.type === 'file' || doc.type === 'image') && doc.url) {
       const { error: storageError } = await supabase.storage
         .from('Project file')
         .remove([doc.url])
       if (storageError) console.error('Error deleting storage file:', storageError)
-    }
+    } */
 
     const { error } = await supabase
       .from('project_documents')
-      .delete()
+      .update({ deleted_at: new Date().toISOString() })
       .eq('id', doc.id)
 
     if (error) throw error

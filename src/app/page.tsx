@@ -47,7 +47,7 @@ const TASK_STATUSES = [
 ]
 
 export default function Dashboard() {
-  const { projects, loading: projectsLoading, refresh: refreshProjects } = useProjects()
+  const { projects, loading: projectsLoading, refresh: refreshProjects, deleteProject } = useProjects()
   const { tasks: allTasks, loading: tasksLoading, refresh: refreshTasks } = useTasks()
   const [searchQuery, setSearchQuery] = useState('')
   const [view, setView] = useState<'grid' | 'calendar' | 'gantt'>('grid')
@@ -302,14 +302,8 @@ export default function Dashboard() {
   })
 
   const handleDeleteProject = async (projectId: string) => {
-    if (!confirm('Bạn có chắc chắn muốn xoá project này? Toàn bộ task liên quan sẽ bị xoá.')) return
-    
-    const { error } = await supabase.from('projects').delete().eq('id', projectId)
-    if (error) {
-      alert(`Lỗi khi xoá: ${error.message}`)
-    } else {
-      handleRefresh()
-    }
+    const success = await deleteProject(projectId)
+    if (success) handleRefresh()
   }
 
   const handleDuplicateProject = async (project: Project) => {

@@ -87,7 +87,7 @@ export function NewTaskDialog({
         const { data: profs } = await supabase.from('assignees').select('id, full_name').order('full_name')
         if (profs) setProfiles(profs)
 
-        const { data: cats } = await supabase.from('project_categories').select('id, name, color').order('order_index', { ascending: true })
+        const { data: cats } = await supabase.from('project_categories').select('id, name, color').is('deleted_at', null).order('order_index', { ascending: true })
         if (cats) {
           setCategories(cats as any)
           if (!categoryId && cats.length > 0) setCategoryId(cats[0].id)
@@ -112,6 +112,7 @@ export function NewTaskDialog({
           .from('task_groups')
           .select('id, name')
           .eq('category_id', categoryId)
+          .is('deleted_at', null)
           .order('order_index', { ascending: true })
         if (data) setTaskGroups(data)
       } else {

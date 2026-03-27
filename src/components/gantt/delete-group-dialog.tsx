@@ -31,7 +31,7 @@ export function DeleteGroupDialog({ group, open, onOpenChange, onRefresh, isUngr
     try {
       const { error } = await supabase
         .from('tasks')
-        .delete()
+        .update({ deleted_at: new Date().toISOString() })
         .in('id', taskIds)
       
       if (error) throw error
@@ -61,7 +61,7 @@ export function DeleteGroupDialog({ group, open, onOpenChange, onRefresh, isUngr
         // Option 2: Delete both group and tasks
         const { error: tasksDeleteError } = await supabase
           .from('tasks')
-          .delete()
+          .update({ deleted_at: new Date().toISOString() })
           .eq('task_group_id', group.id)
         
         if (tasksDeleteError) throw tasksDeleteError
@@ -70,7 +70,7 @@ export function DeleteGroupDialog({ group, open, onOpenChange, onRefresh, isUngr
       // Finally delete the group
       const { error: groupDeleteError } = await supabase
         .from('task_groups')
-        .delete()
+        .update({ deleted_at: new Date().toISOString() })
         .eq('id', group.id)
       
       if (groupDeleteError) throw groupDeleteError

@@ -327,17 +327,19 @@ export function GroupTimelineModal({ group, tasks: initialTasks, open, onOpenCha
                 <div className="flex items-center gap-4 mb-2">
                   <DialogTitle className="text-3xl font-black text-slate-900 tracking-tight leading-none">{group.name}</DialogTitle>
                   <div className="flex items-center gap-2">
-                    <button 
-                      onClick={() => setIsEditingGroup(true)}
-                      className="h-8 w-8 rounded-lg bg-slate-50 flex items-center justify-center text-slate-400 hover:text-primary hover:bg-primary/10 transition-all active:scale-90"
-                      title="Sửa nhóm"
-                    >
-                      <Edit2 className="h-4 w-4" />
-                    </button>
+                    {group.id !== 'ungrouped' && (
+                      <button 
+                        onClick={() => setIsEditingGroup(true)}
+                        className="h-8 w-8 rounded-lg bg-slate-50 flex items-center justify-center text-slate-400 hover:text-primary hover:bg-primary/10 transition-all active:scale-90"
+                        title="Sửa nhóm"
+                      >
+                        <Edit2 className="h-4 w-4" />
+                      </button>
+                    )}
                     <button 
                       onClick={() => setIsDeletingGroup(true)}
                       className="h-8 w-8 rounded-lg bg-slate-50 flex items-center justify-center text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-all active:scale-90"
-                      title="Xoá nhóm"
+                      title={group.id === 'ungrouped' ? "Xoá tất cả task" : "Xoá nhóm"}
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
@@ -614,6 +616,8 @@ export function GroupTimelineModal({ group, tasks: initialTasks, open, onOpenCha
           onTaskUpdated?.()
           onOpenChange(false)
         }}
+        isUngrouped={group.id === 'ungrouped'}
+        taskIds={group.id === 'ungrouped' ? localTasks.map(t => t.id) : undefined}
       />
     </Dialog>
   )

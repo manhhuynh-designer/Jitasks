@@ -158,7 +158,8 @@ CREATE TABLE public.suppliers (
   notes        TEXT,
   created_by   UUID REFERENCES auth.users(id) DEFAULT auth.uid(),
   created_at   TIMESTAMPTZ DEFAULT NOW(),
-  updated_at   TIMESTAMPTZ DEFAULT NOW()
+  updated_at   TIMESTAMPTZ DEFAULT NOW(),
+  deleted_at   TIMESTAMPTZ DEFAULT NULL
 );
 
 -- Assignees
@@ -169,7 +170,8 @@ CREATE TABLE public.assignees (
   email      TEXT,
   created_by UUID REFERENCES auth.users(id) DEFAULT auth.uid(),
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  deleted_at TIMESTAMPTZ DEFAULT NULL
 );
 
 -- Project Categories (Stages)
@@ -262,7 +264,25 @@ CREATE TABLE public.task_templates (
   task_group_id    UUID REFERENCES public.task_groups(id) ON DELETE SET NULL,
   default_priority public.task_priority DEFAULT 'medium',
   created_by       UUID REFERENCES auth.users(id) DEFAULT auth.uid(),
-  updated_at       TIMESTAMPTZ DEFAULT NOW()
+  updated_at       TIMESTAMPTZ DEFAULT NOW(),
+  deleted_at       TIMESTAMPTZ DEFAULT NULL
+);
+
+-- Project Documents
+CREATE TABLE public.project_documents (
+  id           UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  project_id   UUID REFERENCES public.projects(id) ON DELETE CASCADE,
+  title        TEXT NOT NULL,
+  type         TEXT CHECK (type IN ('note', 'link', 'file', 'image')),
+  content      TEXT,
+  url          TEXT,
+  file_name    TEXT,
+  file_size    BIGINT,
+  mime_type    TEXT,
+  created_by   UUID REFERENCES auth.users(id) DEFAULT auth.uid(),
+  created_at   TIMESTAMPTZ DEFAULT NOW(),
+  updated_at   TIMESTAMPTZ DEFAULT NOW(),
+  deleted_at   TIMESTAMPTZ DEFAULT NULL
 );
 
 -- ==========================================
@@ -321,6 +341,7 @@ ALTER TABLE public.task_comments      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.task_attachments   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.email_templates    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.audit_log          ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.project_documents  ENABLE ROW LEVEL SECURITY;
 
 -- Profiles: Own isolation
 CREATE POLICY "profiles_isolation" ON public.profiles FOR ALL TO authenticated USING (id = auth.uid()) WITH CHECK (id = auth.uid());
@@ -330,6 +351,12 @@ CREATE POLICY "categories_select" ON public.project_categories FOR SELECT TO aut
 CREATE POLICY "categories_insert" ON public.project_categories FOR INSERT TO authenticated WITH CHECK (created_by = auth.uid());
 CREATE POLICY "categories_update" ON public.project_categories FOR UPDATE TO authenticated USING (created_by = auth.uid()) WITH CHECK (created_by = auth.uid());
 CREATE POLICY "categories_delete" ON public.project_categories FOR DELETE TO authenticated USING (created_by = auth.uid());
+
+-- Suppliers
+CREATE POLICY "suppliers_isolation" ON public.suppliers FOR ALL TO authenticated USING (created_by = auth.uid()) WITH CHECK (created_by = auth.uid());
+
+-- Assignees
+CREATE POLICY "assignees_isolation" ON public.assignees FOR ALL TO authenticated USING (created_by = auth.uid()) WITH CHECK (created_by = auth.uid());
 
 -- Task Groups: Own or Project Owner
 CREATE POLICY "task_groups_select" ON public.task_groups FOR SELECT TO authenticated
@@ -343,16 +370,31 @@ CREATE POLICY "task_groups_delete" ON public.task_groups FOR DELETE TO authentic
   USING (created_by = auth.uid() OR (project_id IS NOT NULL AND EXISTS (SELECT 1 FROM public.projects WHERE id = project_id AND created_by = auth.uid())));
 
 -- Projects: Creator based
-CREATE POLICY "projects_select" ON public.projects FOR SELECT TO authenticated USING (created_by = auth.uid() AND deleted_at IS NULL);
+CREATE POLICY "projects_select" ON public.projects FOR SELECT TO authenticated USING (created_by = auth.uid());
 CREATE POLICY "projects_insert" ON public.projects FOR INSERT TO authenticated WITH CHECK (created_by = auth.uid());
 CREATE POLICY "projects_update" ON public.projects FOR UPDATE TO authenticated USING (created_by = auth.uid()) WITH CHECK (created_by = auth.uid());
 CREATE POLICY "projects_delete" ON public.projects FOR DELETE TO authenticated USING (created_by = auth.uid());
 
 -- Tasks: Project owner based
-CREATE POLICY "tasks_select" ON public.tasks FOR SELECT TO authenticated USING (deleted_at IS NULL AND EXISTS (SELECT 1 FROM public.projects WHERE id = tasks.project_id AND created_by = auth.uid()));
+CREATE POLICY "tasks_select" ON public.tasks FOR SELECT TO authenticated USING (EXISTS (SELECT 1 FROM public.projects WHERE id = tasks.project_id AND created_by = auth.uid()));
 CREATE POLICY "tasks_insert" ON public.tasks FOR INSERT TO authenticated WITH CHECK (EXISTS (SELECT 1 FROM public.projects WHERE id = tasks.project_id AND created_by = auth.uid()));
 CREATE POLICY "tasks_update" ON public.tasks FOR UPDATE TO authenticated USING (EXISTS (SELECT 1 FROM public.projects WHERE id = tasks.project_id AND created_by = auth.uid())) WITH CHECK (EXISTS (SELECT 1 FROM public.projects WHERE id = tasks.project_id AND created_by = auth.uid()));
 CREATE POLICY "tasks_delete" ON public.tasks FOR DELETE TO authenticated USING (EXISTS (SELECT 1 FROM public.projects WHERE id = tasks.project_id AND created_by = auth.uid()));
+
+-- Project Documents
+CREATE POLICY "documents_isolation" ON public.project_documents FOR ALL TO authenticated 
+USING (EXISTS (SELECT 1 FROM public.projects WHERE id = project_id AND created_by = auth.uid()))
+WITH CHECK (EXISTS (SELECT 1 FROM public.projects WHERE id = project_id AND created_by = auth.uid()));
+
+-- Task Comments
+CREATE POLICY "task_comments_isolation" ON public.task_comments FOR ALL TO authenticated 
+USING (EXISTS (SELECT 1 FROM public.tasks t JOIN public.projects p ON t.project_id = p.id WHERE t.id = task_comments.task_id AND p.created_by = auth.uid()))
+WITH CHECK (EXISTS (SELECT 1 FROM public.tasks t JOIN public.projects p ON t.project_id = p.id WHERE t.id = task_comments.task_id AND p.created_by = auth.uid()));
+
+-- Task Attachments
+CREATE POLICY "task_attachments_isolation" ON public.task_attachments FOR ALL TO authenticated 
+USING (EXISTS (SELECT 1 FROM public.tasks t JOIN public.projects p ON t.project_id = p.id WHERE t.id = task_attachments.task_id AND p.created_by = auth.uid()))
+WITH CHECK (EXISTS (SELECT 1 FROM public.tasks t JOIN public.projects p ON t.project_id = p.id WHERE t.id = task_attachments.task_id AND p.created_by = auth.uid()));
 
 -- Task Templates: Own isolation
 CREATE POLICY "task_templates_select" ON public.task_templates FOR SELECT TO authenticated USING (created_by = auth.uid());

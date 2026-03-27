@@ -278,6 +278,7 @@ export default function CategoryManagement() {
     const { data, error } = await supabase
       .from('project_categories')
       .select('*')
+      .is('deleted_at', null)
       .order('order_index', { ascending: true })
     
     if (data) {
@@ -379,7 +380,7 @@ export default function CategoryManagement() {
     try {
       const { error } = await supabase
         .from('project_categories')
-        .delete()
+        .update({ deleted_at: new Date().toISOString() })
         .eq('id', id)
       
       if (error) throw error

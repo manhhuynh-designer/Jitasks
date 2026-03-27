@@ -32,6 +32,7 @@ export function useTasks(options: { projectId?: string, dueSoon?: boolean } = {}
     let query = supabase
       .from('tasks')
       .select('*, projects(name, status), assignees(id, full_name), project_categories(name), task_groups(id, name)')
+      .is('deleted_at', null)
       .order('deadline', { ascending: true })
 
     if (options.projectId) {

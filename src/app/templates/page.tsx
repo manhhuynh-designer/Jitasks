@@ -204,9 +204,9 @@ export default function TemplatesPage() {
     setLoading(true)
     try {
       const [catRes, groupRes, templateRes] = await Promise.all([
-        supabase.from('project_categories').select('*').order('order_index'),
-        supabase.from('task_groups').select('*').order('order_index'),
-        supabase.from('task_templates').select('*')
+        supabase.from('project_categories').select('*').is('deleted_at', null).order('order_index'),
+        supabase.from('task_groups').select('*').is('deleted_at', null).order('order_index'),
+        supabase.from('task_templates').select('*').is('deleted_at', null)
       ])
 
       if (catRes.data && groupRes.data) {
@@ -291,9 +291,30 @@ export default function TemplatesPage() {
   }
 
   const handleDeleteGroup = async (id: string) => {
-    if (!confirm('Xóa nhóm này sẽ không xóa các template bên trong (chúng sẽ trở thành không có nhóm). Tiếp tục?')) return
-    const { error } = await supabase.from('task_groups').delete().eq('id', id)
-    if (!error) fetchData()
+    if (!confirm('Xóa nhóm này sẽ đồng nghĩa với việc đưa toàn bộ các template bên trong vào thùng rác. Tiếp tục?')) return
+    
+    const deleteTime = new Date().toISOString()
+    
+    // 1. Soft delete the group
+    const { error: groupError } = await supabase
+      .from('task_groups')
+      .update({ deleted_at: deleteTime })
+      .eq('id', id)
+    
+    if (groupError) {
+      console.error("Error deleting group:", groupError)
+      return
+    }
+
+    // 2. Cascaded soft delete templates in this group
+    const { error: templateError } = await supabase
+      .from('task_templates')
+      .update({ deleted_at: deleteTime })
+      .eq('task_group_id', id)
+    
+    if (templateError) console.error("Error soft deleting child templates:", templateError)
+    
+    fetchData()
   }
 
   const handleUpdateGroup = async (id: string, name: string) => {
@@ -303,7 +324,11 @@ export default function TemplatesPage() {
 
   const deleteTemplate = async (id: string) => {
     if (!confirm('Xóa template này?')) return
-    const { error } = await supabase.from('task_templates').delete().eq('id', id)
+    const { error } = await supabase
+      .from('task_templates')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', id)
+    
     if (!error) {
       setTemplates(prev => prev.filter(t => t.id !== id))
     }

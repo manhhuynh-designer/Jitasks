@@ -31,7 +31,11 @@ export default function SuppliersPage() {
 
   const fetchSuppliers = useCallback(async () => {
     setLoading(true)
-    const { data } = await supabase.from('suppliers').select('*, projects(id)').order('name')
+    const { data } = await supabase
+      .from('suppliers')
+      .select('*, projects(id)')
+      .is('deleted_at', null)
+      .order('name')
     if (data) setSuppliers(data)
     setLoading(false)
   }, [])
@@ -42,7 +46,11 @@ export default function SuppliersPage() {
 
   const deleteSupplier = async (id: string) => {
     if (!confirm('Xóa nhà cung cấp này?')) return
-    const { error } = await supabase.from('suppliers').delete().eq('id', id)
+    const { error } = await supabase
+      .from('suppliers')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', id)
+    
     if (!error) {
       setSuppliers(suppliers.filter(s => s.id !== id))
     }
