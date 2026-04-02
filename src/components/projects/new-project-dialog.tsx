@@ -120,11 +120,12 @@ export function NewProjectDialog({ onProjectCreated }: { onProjectCreated?: () =
         return
       }
 
-      // 1. Fetch global task groups (templates)
+      // 1. Fetch global task groups (templates) - only user's own
       const { data: globalGroups } = await supabase
         .from('task_groups')
         .select('*')
         .is('project_id', null)
+        .eq('created_by', user.id)
 
       const groupMapping: Record<string, string> = {}
       // Set of disabled global group IDs (auto_create = false)
@@ -166,6 +167,7 @@ export function NewProjectDialog({ onProjectCreated }: { onProjectCreated?: () =
       const { data: templates } = await supabase
         .from('task_templates')
         .select('*')
+        .eq('created_by', user.id)
 
       if (templates && templates.length > 0) {
         // Filter out templates belonging to disabled groups

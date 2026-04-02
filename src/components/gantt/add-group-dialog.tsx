@@ -34,12 +34,15 @@ export function AddGroupDialog({ projectId, categoryId, onGroupCreated, trigger 
   useEffect(() => {
     if (open) {
       const fetchTemplates = async () => {
-        // Fetch groups where project_id is null as templates
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
+        // Fetch groups where project_id is null as templates - only user's own
         const { data } = await supabase
           .from('task_groups')
           .select('id, name')
           .is('project_id', null)
           .eq('category_id', categoryId)
+          .eq('created_by', user.id)
         if (data) setTemplates(data)
       }
       fetchTemplates()
