@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { format } from 'date-fns'
 import { useProjects } from '@/hooks/use-projects'
 import { useTasks } from '@/hooks/use-tasks'
+import { useLocalStorage } from '@/hooks/use-local-storage'
 import { supabase } from '@/lib/supabase'
 import { ProjectCard } from '@/components/projects/project-card'
 import { TaskHotlist } from '@/components/tasks/task-hotlist'
@@ -49,8 +50,8 @@ const TASK_STATUSES = [
 export default function Dashboard() {
   const { projects, loading: projectsLoading, refresh: refreshProjects, deleteProject } = useProjects()
   const { tasks: allTasks, loading: tasksLoading, refresh: refreshTasks } = useTasks()
-  const [searchQuery, setSearchQuery] = useState('')
-  const [view, setView] = useState<'grid' | 'calendar' | 'gantt'>('grid')
+  const [searchQuery, setSearchQuery] = useLocalStorage('ji_searchQuery', '')
+  const [view, setView] = useLocalStorage<'grid' | 'calendar' | 'gantt'>('ji_view', 'grid')
   const [categories, setCategories] = useState<{id: string, name: string, color: string}[]>([])
 
   useEffect(() => {
@@ -61,16 +62,26 @@ export default function Dashboard() {
     fetchCats()
   }, [])
 
-  const [statusFilter, setStatusFilter] = useState<string[]>([])
-  const [taskStatusFilter, setTaskStatusFilter] = useState<string[]>([])
-  const [priorityFilter, setPriorityFilter] = useState<string[]>([])
-  const [supplierFilter, setSupplierFilter] = useState<string[]>([])
-  const [dateRange, setDateRange] = useState<{ from: Date | undefined, to: Date | undefined }>({ from: undefined, to: undefined })
+  const [statusFilter, setStatusFilter] = useLocalStorage<string[]>('ji_statusFilter', [])
+  const [taskStatusFilter, setTaskStatusFilter] = useLocalStorage<string[]>('ji_taskStatusFilter', [])
+  const [priorityFilter, setPriorityFilter] = useLocalStorage<string[]>('ji_priorityFilter', [])
+  const [supplierFilter, setSupplierFilter] = useLocalStorage<string[]>('ji_supplierFilter', [])
+  const [rawDateRange, setRawDateRange] = useLocalStorage<{ from: string | Date | undefined, to: string | Date | undefined }>('ji_dateRange', { from: undefined, to: undefined })
+  
+  // Deserialize Date objects from localStorage
+  const dateRange = useMemo(() => ({
+    from: rawDateRange.from ? new Date(rawDateRange.from) : undefined,
+    to: rawDateRange.to ? new Date(rawDateRange.to) : undefined
+  }), [rawDateRange])
+
+  const setDateRange = (range: { from: Date | undefined, to: Date | undefined }) => {
+    setRawDateRange(range)
+  }
   const [showSupplierDropdown, setShowSupplierDropdown] = useState(false)
   const [showDatePicker, setShowDatePicker] = useState(false)
   
-  const [currentPage, setCurrentPage] = useState(1)
-  const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc')
+  const [currentPage, setCurrentPage] = useLocalStorage('ji_currentPage', 1)
+  const [sortOrder, setSortOrder] = useLocalStorage<'desc' | 'asc'>('ji_sortOrder', 'desc')
   const [editingProject, setEditingProject] = useState<Project | null>(null)
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [taskFilter, setTaskFilter] = useState<'today' | 'upcoming'>('today')
@@ -115,7 +126,7 @@ export default function Dashboard() {
       upcoming: upcomingTasks.length
     }
   }, [allTasks, upcomingRange])
-  const [itemsPerPage, setItemsPerPage] = useState(6)
+  const [itemsPerPage, setItemsPerPage] = useLocalStorage('ji_itemsPerPage', 6)
 
   const [cloningProject, setCloningProject] = useState<Project | null>(null)
   const [isCloneOpen, setIsCloneOpen] = useState(false)
