@@ -7,11 +7,12 @@ import { useTasks } from '@/hooks/use-tasks'
 import { useLocalStorage } from '@/hooks/use-local-storage'
 import { supabase } from '@/lib/supabase'
 import { ProjectCard } from '@/components/projects/project-card'
+import { ProjectListItem } from '@/components/projects/project-list-item'
 import { TaskHotlist } from '@/components/tasks/task-hotlist'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
-import { Plus, Search, Calendar as CalendarIcon, LayoutGrid, Filter, ChevronLeft, ChevronRight, ChevronDownIcon, X, Briefcase, Tag, Clock, Flag, ArrowDownUp, Command, BarChart2 } from 'lucide-react'
+import { Plus, Search, Calendar as CalendarIcon, LayoutGrid, List, Filter, ChevronLeft, ChevronRight, ChevronDownIcon, X, Briefcase, Tag, Clock, Flag, ArrowDownUp, Command, BarChart2 } from 'lucide-react'
 import {
   Popover,
   PopoverContent,
@@ -127,6 +128,7 @@ export default function Dashboard() {
     }
   }, [allTasks, upcomingRange])
   const [itemsPerPage, setItemsPerPage] = useLocalStorage('ji_itemsPerPage', 6)
+  const [gridDisplayType, setGridDisplayType] = useLocalStorage<'grid' | 'list'>('ji_gridDisplayType', 'grid')
 
   const [cloningProject, setCloningProject] = useState<Project | null>(null)
   const [isCloneOpen, setIsCloneOpen] = useState(false)
@@ -391,15 +393,7 @@ export default function Dashboard() {
       <div className="flex flex-col xl:flex-row gap-8 xl:items-stretch items-start">
         {/* Left Column: Project Grid */}
         <div className="flex-1 min-w-0 w-full space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 border-b border-white/40 pb-6 mb-6">
-            <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-              Dự án đang triển khai
-              <span className="h-6 px-2.5 flex items-center justify-center bg-primary/10 text-primary text-xs rounded-full font-bold">
-                {filteredProjects.length}
-              </span>
-            </h3>
-            
-            <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap border-b border-white/40 pb-5 mb-6">
               {/* Compact Search Bar next to Sort/Filter */}
               <div className="relative group flex-1 sm:flex-initial">
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-primary transition-all duration-300" />
@@ -666,79 +660,129 @@ export default function Dashboard() {
                 </Popover>
               </div>
 
-              {/* View Toggle - More Prominent */}
-              <div className="flex p-1.5 bg-white/40 glass-premium rounded-2xl border border-white/60 shadow-md h-12 items-center">
+              {/* View Mode Toggle */}
+              <div className="w-[1px] h-5 bg-slate-200 hidden sm:block" />
+              <div className="flex p-1 bg-white/40 glass-premium rounded-2xl border border-white/60 h-11 items-center">
                 <Button 
                   onClick={() => setView('grid')}
                   className={cn(
-                    "rounded-xl h-9 px-4 transition-all flex items-center gap-2 font-black border-none",
+                    "rounded-xl h-9 px-3 transition-all flex items-center gap-1.5 font-black border-none text-[10px]",
                     view === 'grid' 
-                      ? "bg-primary text-white shadow-lg shadow-primary/20 scale-105" 
+                      ? "bg-primary text-white shadow-lg shadow-primary/20" 
                       : "bg-transparent text-slate-400 hover:text-slate-600"
                   )}
                 >
-                  <LayoutGrid className="h-4 w-4" />
-                  <span className="text-[10px] uppercase tracking-widest">Lưới</span>
+                  <LayoutGrid className="h-3.5 w-3.5" />
+                  <span className="uppercase tracking-widest hidden sm:inline">Lưới</span>
                 </Button>
                 <Button 
                   onClick={() => setView('calendar')}
                   className={cn(
-                    "rounded-xl h-9 px-4 transition-all flex items-center gap-2 font-black border-none",
+                    "rounded-xl h-9 px-3 transition-all flex items-center gap-1.5 font-black border-none text-[10px]",
                     view === 'calendar' 
-                      ? "bg-primary text-white shadow-lg shadow-primary/20 scale-105" 
+                      ? "bg-primary text-white shadow-lg shadow-primary/20" 
                       : "bg-transparent text-slate-400 hover:text-slate-600"
                   )}
                 >
-                  <CalendarIcon className="h-4 w-4" />
-                  <span className="text-[10px] uppercase tracking-widest">Lịch</span>
+                  <CalendarIcon className="h-3.5 w-3.5" />
+                  <span className="uppercase tracking-widest hidden sm:inline">Lịch</span>
                 </Button>
                 <Button 
                   onClick={() => setView('gantt')}
                   className={cn(
-                    "rounded-xl h-9 px-4 transition-all flex items-center gap-2 font-black border-none",
+                    "rounded-xl h-9 px-3 transition-all flex items-center gap-1.5 font-black border-none text-[10px]",
                     view === 'gantt' 
-                      ? "bg-primary text-white shadow-lg shadow-primary/20 scale-105" 
+                      ? "bg-primary text-white shadow-lg shadow-primary/20" 
                       : "bg-transparent text-slate-400 hover:text-slate-600"
                   )}
                 >
-                  <BarChart2 className="h-4 w-4 rotate-90" />
-                  <span className="text-[10px] uppercase tracking-widest">Gantt</span>
+                  <BarChart2 className="h-3.5 w-3.5 rotate-90" />
+                  <span className="uppercase tracking-widest hidden sm:inline">Gantt</span>
                 </Button>
               </div>
-            </div>
+
+              {/* Card/List sub-toggle — only in Grid view */}
+              {view === 'grid' && (
+                <div className="flex p-0.5 bg-white/30 rounded-lg border border-white/40 h-9 items-center">
+                  <Button 
+                    variant="ghost"
+                    onClick={() => setGridDisplayType('grid')}
+                    className={cn(
+                      "rounded-md h-8 w-8 p-0 transition-all flex items-center justify-center border-none",
+                      gridDisplayType === 'grid' 
+                        ? "bg-white text-primary shadow-sm" 
+                        : "bg-transparent text-slate-400 hover:text-slate-600"
+                    )}
+                    title="Card view"
+                  >
+                    <LayoutGrid className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button 
+                    variant="ghost"
+                    onClick={() => setGridDisplayType('list')}
+                    className={cn(
+                      "rounded-md h-8 w-8 p-0 transition-all flex items-center justify-center border-none",
+                      gridDisplayType === 'list' 
+                        ? "bg-white text-primary shadow-sm" 
+                        : "bg-transparent text-slate-400 hover:text-slate-600"
+                    )}
+                    title="List view"
+                  >
+                    <List className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              )}
           </div>
 
           {view === 'grid' ? (
             <div className="space-y-6">
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {projectsLoading ? (
-                  [1, 2, 3, 4].map(i => (
+              {projectsLoading ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {[1, 2, 3, 4].map(i => (
                     <div key={i} className="h-64 glass-premium rounded-3xl animate-pulse" />
-                  ))
-                ) : paginatedProjects.length > 0 ? (
-                  paginatedProjects.map(project => (
-                    <ProjectCard 
-                      key={project.id} 
-                      project={project} 
-                      tasks={filteredTasks}
-                      categories={categories}
-                      onEdit={(p) => {
-                        setEditingProject(p)
-                        setIsEditOpen(true)
-                      }}
-                      onDelete={handleDeleteProject}
-                      onDuplicate={handleDuplicateProject}
-                      onTaskUpdate={handleRefresh}
-                    />
-                  ))
-                ) : (
-                  <div className="col-span-full py-20 text-center glass-premium rounded-3xl border-dashed border-2 border-white/50">
-                    <p className="text-slate-400 font-medium italic">Không có project nào khớp với bộ lọc</p>
-                    <Button variant="link" onClick={clearFilters} className="text-primary mt-2">Xoá toàn bộ lọc</Button>
-                  </div>
-                )}
-              </div>
+                  ))}
+                </div>
+              ) : paginatedProjects.length > 0 ? (
+                <div className={cn(
+                  gridDisplayType === 'grid' 
+                    ? "grid grid-cols-1 md:grid-cols-2 gap-6" 
+                    : "bg-white/30 glass-premium rounded-lg border border-white/40 overflow-hidden divide-y divide-slate-100"
+                )}>
+                  {paginatedProjects.map(project => (
+                    <div key={project.id}>
+                      {gridDisplayType === 'grid' ? (
+                        <ProjectCard 
+                          project={project} 
+                          tasks={filteredTasks}
+                          categories={categories}
+                          onEdit={(p) => {
+                            setEditingProject(p)
+                            setIsEditOpen(true)
+                          }}
+                          onDelete={handleDeleteProject}
+                          onDuplicate={handleDuplicateProject}
+                          onTaskUpdate={handleRefresh}
+                        />
+                      ) : (
+                        <ProjectListItem 
+                          project={project}
+                          tasks={allTasks}
+                          onEdit={(p) => {
+                            setEditingProject(p)
+                            setIsEditOpen(true)
+                          }}
+                          onDelete={handleDeleteProject}
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="py-20 text-center glass-premium rounded-3xl border-dashed border-2 border-white/50">
+                  <p className="text-slate-400 font-medium italic">Không có project nào khớp với bộ lọc</p>
+                  <Button variant="link" onClick={clearFilters} className="text-primary mt-2">Xoá toàn bộ lọc</Button>
+                </div>
+              )}
               
               {/* Pagination Controls */}
               {totalPages >= 1 && (
