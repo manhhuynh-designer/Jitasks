@@ -13,7 +13,9 @@ import {
   Briefcase, 
   Flag,
   Circle,
-  PlayCircle
+  PlayCircle,
+  Filter,
+  ListChecks
 } from 'lucide-react'
 import { getPriorityInfo } from '@/lib/priority-utils'
 import { cn } from '@/lib/utils'
@@ -56,6 +58,7 @@ export function TaskHotlist({
   upcomingRange?: '7' | '30' | 'all'
 }) {
   const [selectedTask, setSelectedTask] = useState<any>(null)
+  const [todayFilterMode, setTodayFilterMode] = useState<'all' | 'today-only'>('all')
 
   const updateTaskStatus = async (taskId: string, newStatus: string) => {
     const { error } = await supabase.from('tasks').update({ status: newStatus }).eq('id', taskId)
@@ -77,6 +80,9 @@ export function TaskHotlist({
       taskDate.setHours(0,0,0,0)
       
       if (filter === 'today') {
+        if (todayFilterMode === 'today-only') {
+          return taskDate.getTime() === today.getTime()
+        }
         return taskDate.getTime() <= today.getTime()
       } else {
         if (taskDate.getTime() <= today.getTime()) return false
@@ -124,6 +130,53 @@ export function TaskHotlist({
 
   return (
     <div className="space-y-6">
+      {/* Today Filter Toggle */}
+      {filter === 'today' && (
+        <div className="flex items-center justify-between px-2">
+          <div className="flex items-center gap-2">
+            <div className="h-7 w-7 rounded-lg bg-rose-50 flex items-center justify-center">
+              <Filter className="h-3.5 w-3.5 text-rose-500" />
+            </div>
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+              Chế độ hiển thị
+            </span>
+          </div>
+          
+          <div className="flex bg-slate-100/50 p-1 rounded-xl border border-slate-200/40">
+            <button
+              onClick={() => setTodayFilterMode('all')}
+              className={cn(
+                "px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all",
+                todayFilterMode === 'all' 
+                  ? "bg-white text-rose-500 shadow-sm shadow-rose-100 ring-1 ring-rose-100" 
+                  : "text-slate-400 hover:text-slate-600"
+              )}
+            >
+              Tất cả ({tasks.filter(t => {
+                const today = new Date(); today.setHours(0,0,0,0);
+                const td = new Date(t.deadline); td.setHours(0,0,0,0);
+                return td.getTime() <= today.getTime() && t.status !== 'done';
+              }).length})
+            </button>
+            <button
+              onClick={() => setTodayFilterMode('today-only')}
+              className={cn(
+                "px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all",
+                todayFilterMode === 'today-only' 
+                  ? "bg-white text-rose-500 shadow-sm shadow-rose-100 ring-1 ring-rose-100" 
+                  : "text-slate-400 hover:text-slate-600"
+              )}
+            >
+              Chỉ hôm nay ({tasks.filter(t => {
+                const today = new Date(); today.setHours(0,0,0,0);
+                const td = new Date(t.deadline); td.setHours(0,0,0,0);
+                return td.getTime() === today.getTime() && t.status !== 'done';
+              }).length})
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="space-y-3">
         {sortedTasks.length > 0 ? (
           sortedTasks.map(task => (
