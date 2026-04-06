@@ -620,8 +620,8 @@ export function DashboardGantt({ tasks: initialTasks, onRefreshTasks }: Dashboar
 
       <ScrollArea className="flex-1 w-full" style={{ height: '100%' }}>
         <div className="min-w-fit min-h-full">
-          <div className="flex border-b border-slate-100 sticky top-0 z-[70] shadow-sm bg-white/95 backdrop-blur-md">
-            <div className="gantt-left-column sticky left-0 z-[80] w-64 shrink-0 bg-white/80 backdrop-blur-md border-r border-slate-100 shadow-[4px_0_15px_-5px_rgba(0,0,0,0.1)] flex items-center px-4">
+          <div className="flex border-b border-slate-100 sticky top-0 z-10 shadow-sm bg-white/95 backdrop-blur-md">
+            <div className="gantt-left-column sticky left-0 z-20 w-64 shrink-0 bg-white/80 backdrop-blur-md border-r border-slate-100 shadow-[4px_0_15px_-5px_rgba(0,0,0,0.1)] flex items-center px-4">
               <div className="relative w-full group">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 group-focus-within:text-primary transition-colors" />
                 <input 
