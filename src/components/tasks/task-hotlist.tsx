@@ -66,6 +66,8 @@ export function TaskHotlist({
 
   const sortedTasks = [...tasks]
     .filter(t => t.status !== 'done')
+    .filter(t => t.projects?.status !== 'Archive')
+    .filter(t => !t.projects?.deleted_at)
     .filter(t => {
       if (!t.deadline) return filter === 'upcoming' && upcomingRange === 'all'
       

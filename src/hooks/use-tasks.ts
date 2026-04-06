@@ -17,7 +17,7 @@ export type Task = {
   task_group_id: string | null
   task_time: number | null
   updated_at: string
-  projects?: { name: string, status: string, color?: string }
+  projects?: { name: string, status: string, color?: string, deleted_at?: string | null }
   assignees?: { id: string, full_name: string }
   project_categories?: { name: string }
   task_groups?: { id: string, name: string, start_date?: string | null, deadline?: string | null } | null
@@ -31,7 +31,7 @@ export function useTasks(options: { projectId?: string, dueSoon?: boolean } = {}
     setLoading(true)
     let query = supabase
       .from('tasks')
-      .select('*, projects(name, status), assignees(id, full_name), project_categories(name), task_groups(id, name)')
+      .select('*, projects(name, status, deleted_at), assignees(id, full_name), project_categories(name), task_groups(id, name)')
       .is('deleted_at', null)
       .order('deadline', { ascending: true })
 
